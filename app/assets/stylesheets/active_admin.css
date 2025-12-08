@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import 'active_admin/mixins';
+@import 'active_admin/base';
+@config "../../../tailwind-active_admin.config.js";
