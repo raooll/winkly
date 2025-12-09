@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_08_122138) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_09_090454) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,7 +48,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_08_122138) do
     t.integer "click_count", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "tracking_id"
     t.index ["short_uri"], name: "index_short_urls_on_short_uri", unique: true
+    t.index ["tracking_id"], name: "index_short_urls_on_tracking_id", unique: true
     t.index ["user_id"], name: "index_short_urls_on_user_id"
   end
 
