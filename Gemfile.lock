@@ -109,8 +109,6 @@ GEM
     concurrent-ruby (1.3.5)
     connection_pool (3.0.2)
     crass (1.0.6)
-    cssbundling-rails (1.4.3)
-      railties (>= 6.0.0)
     csv (3.3.5)
     date (3.5.0)
     debug (1.11.0)
@@ -461,7 +459,6 @@ DEPENDENCIES
   bootsnap
   brakeman
   capybara
-  cssbundling-rails
   debug
   devise
   friendly_id (~> 5.5.0)

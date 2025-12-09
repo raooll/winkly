@@ -15,7 +15,6 @@ gem "turbo-rails"
 # Hotwire's modest JavaScript framework [https://stimulus.hotwired.dev]
 gem "stimulus-rails"
 # Bundle and process CSS [https://github.com/rails/cssbundling-rails]
-gem "cssbundling-rails"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
 
@@ -66,11 +65,11 @@ group :test do
 end
 
 
-gem 'devise'
+gem "devise"
 gem "activeadmin", "4.0.0.beta19"
-gem 'sassc-rails'
+gem "sassc-rails"
 
 gem "tailwindcss-rails", "~> 4.4"
 gem "importmap-rails"
 
-gem 'friendly_id', '~> 5.5.0'
+gem "friendly_id", "~> 5.5.0"
