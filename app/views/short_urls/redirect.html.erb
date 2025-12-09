@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Redirecting...</title>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .loader {
+      text-align: center;
+      color: white;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    h2 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    p {
+      margin: 10px 0 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <h2>Redirecting...</h2>
+    <p>Please wait</p>
+  </div>
+
+<script>
+    (function() {
+      // Get the short URL data from the server
+      const shortUri = '<%= @short_url.short_uri %>';
+      const url1 = '<%= @short_url.url1 %>';
+      const url2 = '<%= @short_url.url2.present? ? @short_url.url2 : "" %>';
+      
+      // Generate a unique tracking ID for this short URL
+      const trackingKey = `winkly_${shortUri}`;
+      
+      console.log('=== WINKLY URL ALTERNATION DEBUG ===');
+      console.log('Short URI:', shortUri);
+      console.log('URL 1:', url1);
+      console.log('URL 2:', url2);
+      console.log('Tracking Key:', trackingKey);
+      console.log('Timestamp:', new Date().toISOString());
+      
+      // Function to get or create a unique visitor ID
+      function getVisitorId() {
+        let visitorId = localStorage.getItem('winkly_visitor_id');
+        if (!visitorId) {
+          // Generate a 32-character hex string (like UUID)
+          visitorId = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+          localStorage.setItem('winkly_visitor_id', visitorId);
+          console.log('Created NEW visitor ID:', visitorId);
+        } else {
+          console.log('Found EXISTING visitor ID:', visitorId);
+        }
+        return visitorId;
+      }
+      
+      // Function to determine which URL to redirect to
+      function getRedirectUrl() {
+        console.log('\n--- Starting URL Selection Logic ---');
+        
+        // If there's no second URL, always redirect to url1
+        if (!url2) {
+          console.log('Decision: Only ONE URL configured, using URL 1');
+          return url1;
+        }
+        
+        console.log('Decision: TWO URLs configured, checking tracking...');
+        
+        // Get visitor's tracking data for this specific short URL
+        const visitorId = getVisitorId();
+        let trackingData = localStorage.getItem(trackingKey);
+        
+        console.log('Raw tracking data from localStorage:', trackingData);
+        
+        if (trackingData) {
+          console.log('Tracking data EXISTS for this short URL');
+          
+          // Parse existing tracking data
+          try {
+            const data = JSON.parse(trackingData);
+            console.log('Parsed tracking data:', JSON.stringify(data, null, 2));
+            
+            // Check if this visitor has clicked this link before
+            if (data.visitorId === visitorId) {
+              console.log('Decision: SAME VISITOR returning');
+              console.log('Last URL used:', data.lastUrl);
+              console.log('Last URL === URL 1?', data.lastUrl === url1);
+              console.log('Last URL === URL 2?', data.lastUrl === url2);
+              
+              // Same visitor - alternate the URL
+              const lastUrl = data.lastUrl;
+              const nextUrl = lastUrl === url1 ? url2 : url1;
+              
+              console.log('ALTERNATING: Next URL will be:', nextUrl);
+              console.log('Previous click count:', data.clickCount || 0);
+              
+              // Update tracking data
+              const newTrackingData = {
+                visitorId: visitorId,
+                lastUrl: nextUrl,
+                clickCount: (data.clickCount || 0) + 1,
+                lastVisit: new Date().toISOString()
+              };
+              localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              console.log('Updated tracking data:', JSON.stringify(newTrackingData, null, 2));
+              
+              return nextUrl;
+            } else {
+              console.log('Decision: DIFFERENT VISITOR (visitor ID mismatch)');
+              console.log('Stored visitor ID:', data.visitorId);
+              console.log('Current visitor ID:', visitorId);
+              console.log('Starting fresh with URL 1');
+              
+              // Different visitor - start fresh with url1
+              const newTrackingData = {
+                visitorId: visitorId,
+                lastUrl: url1,
+                clickCount: 1,
+                lastVisit: new Date().toISOString()
+              };
+              localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              console.log('Created new tracking data:', JSON.stringify(newTrackingData, null, 2));
+              
+              return url1;
+            }
+          } catch (e) {
+            // If parsing fails, reset with url1
+            console.error('ERROR parsing tracking data:', e);
+            console.log('Resetting to URL 1 due to parse error');
+            
+            const newTrackingData = {
+              visitorId: visitorId,
+              lastUrl: url1,
+              clickCount: 1,
+              lastVisit: new Date().toISOString()
+            };
+            localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+            console.log('Reset tracking data:', JSON.stringify(newTrackingData, null, 2));
+            
+            return url1;
+          }
+        } else {
+          console.log('Decision: NO TRACKING DATA found (first visit to this short URL)');
+          console.log('Starting with URL 1');
+          
+          // First visit - save tracking data and redirect to url1
+          const newTrackingData = {
+            visitorId: visitorId,
+            lastUrl: url1,
+            clickCount: 1,
+            lastVisit: new Date().toISOString()
+          };
+          localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+          console.log('Created initial tracking data:', JSON.stringify(newTrackingData, null, 2));
+          
+          return url1;
+        }
+      }
+      
+      // Get the target URL and redirect
+      const targetUrl = getRedirectUrl();
+      
+      console.log('\n=== FINAL DECISION ===');
+      console.log('Redirecting to:', targetUrl);
+      console.log('All localStorage keys:', Object.keys(localStorage));
+      console.log('All localStorage data:', JSON.stringify(localStorage, null, 2));
+      console.log('=====================================\n');
+      
+      // Redirect after a short delay (for better UX)
+      setTimeout(function() {
+        console.log('Executing redirect now...');
+        window.location.href = targetUrl;
+      }, 500);
+    })();
+  </script>
+</body>
+</html>
