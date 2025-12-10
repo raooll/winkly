@@ -67,7 +67,7 @@ end
 
 gem "devise"
 gem "activeadmin", "4.0.0.beta19"
-gem "sassc-rails"
+
 
 gem "tailwindcss-rails", "~> 4.4"
 gem "importmap-rails"
