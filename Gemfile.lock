@@ -140,7 +140,7 @@ GEM
     formtastic (5.0.0)
       actionpack (>= 6.0.0)
     formtastic_i18n (0.7.0)
-    friendly_id (5.5.1)
+    friendly_id (5.6.0)
       activerecord (>= 4.0.0)
     fugit (1.12.1)
       et-orbi (~> 1.4)
@@ -462,7 +462,7 @@ DEPENDENCIES
   clickhouse-activerecord
   debug
   devise
-  friendly_id (~> 5.5.0)
+  friendly_id (~> 5.6.0)
   importmap-rails
   jbuilder
   jsbundling-rails
