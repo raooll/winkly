@@ -150,28 +150,32 @@ namespace :clickhouse do
     }
   end
 
-  def execute_query(config, query)
-    require "net/http"
-    require "uri"
+def execute_query(config, query)
+  require "net/http"
+  require "uri"
 
-    uri = URI.parse("https://#{config[:host]}:#{config[:port]}/")
+  # Build URL with database parameter instead of USE statement
+  url = "https://#{config[:host]}:#{config[:port]}/"
+  url += "?database=#{config[:database]}" if config[:database] && config[:database] != "default"
 
-    http = Net::HTTP.new(uri.host, uri.port)
-    http.use_ssl = true
-    http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-    http.read_timeout = 30
+  uri = URI.parse(url)
 
-    request = Net::HTTP::Post.new(uri.request_uri)
-    request.basic_auth(config[:username], config[:password])
-    request.body = "USE #{config[:database]}; #{query}"
-    request["Content-Type"] = "text/plain"
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+  http.read_timeout = 30
 
-    response = http.request(request)
+  request = Net::HTTP::Post.new(uri.request_uri)
+  request.basic_auth(config[:username], config[:password])
+  request.body = query  # Remove the "USE database;" prefix
+  request["Content-Type"] = "text/plain"
 
-    unless response.code.to_i == 200
-      raise "ClickHouse query failed (#{response.code}): #{response.body}"
-    end
+  response = http.request(request)
 
-    response.body
+  unless response.code.to_i == 200
+    raise "ClickHouse query failed (#{response.code}): #{response.body}"
   end
+
+  response.body
+end
 end
