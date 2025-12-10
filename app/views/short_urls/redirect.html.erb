@@ -55,6 +55,7 @@
       const shortUri = '<%= @short_url.short_uri %>';
       const url1 = '<%= @short_url.url1 %>';
       const url2 = '<%= @short_url.url2.present? ? @short_url.url2 : "" %>';
+      const csrfToken = '<%= form_authenticity_token %>';
       
       // Generate a unique tracking ID for this short URL
       const trackingKey = `winkly_${shortUri}`;
@@ -82,6 +83,33 @@
         return visitorId;
       }
       
+      // Function to send tracking data to server (ClickHouse)
+      async function trackClick(urlType, redirectUrl) {
+        try {
+          const response = await fetch(`/${shortUri}/track`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken,
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              url_type: urlType,
+              redirected_url: redirectUrl,
+              visitor_id: getVisitorId()
+            })
+          });
+          
+          if (response.ok) {
+            console.log('✓ Click tracked successfully in ClickHouse');
+          } else {
+            console.error('✗ Tracking failed:', response.status);
+          }
+        } catch (error) {
+          console.error('✗ Tracking error:', error);
+        }
+      }
+      
       // Function to determine which URL to redirect to
       function getRedirectUrl() {
         console.log('\n--- Starting URL Selection Logic ---');
@@ -89,7 +117,7 @@
         // If there's no second URL, always redirect to url1
         if (!url2) {
           console.log('Decision: Only ONE URL configured, using URL 1');
-          return url1;
+          return { url: url1, type: 'url1' };
         }
         
         console.log('Decision: TWO URLs configured, checking tracking...');
@@ -118,6 +146,7 @@
               // Same visitor - alternate the URL
               const lastUrl = data.lastUrl;
               const nextUrl = lastUrl === url1 ? url2 : url1;
+              const nextType = lastUrl === url1 ? 'url2' : 'url1';
               
               console.log('ALTERNATING: Next URL will be:', nextUrl);
               console.log('Previous click count:', data.clickCount || 0);
@@ -132,7 +161,7 @@
               localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
               console.log('Updated tracking data:', JSON.stringify(newTrackingData, null, 2));
               
-              return nextUrl;
+              return { url: nextUrl, type: nextType };
             } else {
               console.log('Decision: DIFFERENT VISITOR (visitor ID mismatch)');
               console.log('Stored visitor ID:', data.visitorId);
@@ -149,7 +178,7 @@
               localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
               console.log('Created new tracking data:', JSON.stringify(newTrackingData, null, 2));
               
-              return url1;
+              return { url: url1, type: 'url1' };
             }
           } catch (e) {
             // If parsing fails, reset with url1
@@ -165,7 +194,7 @@
             localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
             console.log('Reset tracking data:', JSON.stringify(newTrackingData, null, 2));
             
-            return url1;
+            return { url: url1, type: 'url1' };
           }
         } else {
           console.log('Decision: NO TRACKING DATA found (first visit to this short URL)');
@@ -181,24 +210,27 @@
           localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
           console.log('Created initial tracking data:', JSON.stringify(newTrackingData, null, 2));
           
-          return url1;
+          return { url: url1, type: 'url1' };
         }
       }
       
       // Get the target URL and redirect
-      const targetUrl = getRedirectUrl();
+      const redirectInfo = getRedirectUrl();
       
       console.log('\n=== FINAL DECISION ===');
-      console.log('Redirecting to:', targetUrl);
+      console.log('Redirecting to:', redirectInfo.url);
+      console.log('URL Type:', redirectInfo.type);
       console.log('All localStorage keys:', Object.keys(localStorage));
-      console.log('All localStorage data:', JSON.stringify(localStorage, null, 2));
       console.log('=====================================\n');
       
-      // Redirect after a short delay (for better UX)
+      // Track the click in ClickHouse (fire and forget)
+      trackClick(redirectInfo.type, redirectInfo.url);
+      
+      // Redirect after a short delay (for better UX and to allow tracking)
       setTimeout(function() {
         console.log('Executing redirect now...');
-        window.location.href = targetUrl;
-      }, 500);
+        window.location.href = redirectInfo.url;
+      }, 200);
     })();
   </script>
 </body>

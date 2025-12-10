@@ -73,3 +73,4 @@ gem "tailwindcss-rails", "~> 4.4"
 gem "importmap-rails"
 
 gem "friendly_id", "~> 5.5.0"
+gem "clickhouse-activerecord"
