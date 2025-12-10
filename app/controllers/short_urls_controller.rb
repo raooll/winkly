@@ -1,6 +1,8 @@
+# app/controllers/short_urls_controller.rb
+
 class ShortUrlsController < ApplicationController
-before_action :authenticate_user!, except: [ :redirect, :check_availability ]
-  before_action :set_short_url, only: [ :destroy ]
+  before_action :authenticate_user!, except: [ :redirect, :check_availability, :stats ]
+  before_action :set_short_url, only: [ :destroy, :stats ]
 
   # GET /short_urls
   def index
@@ -66,40 +68,85 @@ before_action :authenticate_user!, except: [ :redirect, :check_availability ]
     end
   end
 
-def check_availability
-  short_uri = params[:short_uri].to_s.strip.downcase
+  # POST /:short_uri/track - Called from client-side to track the click
+  def track_click
+    @short_url = ShortUrl.find_by(short_uri: params[:short_uri])
 
-  if short_uri.blank?
-    render json: { available: true, message: "" }
-    return
+    if @short_url
+      url_type = params[:url_type] # 'url1' or 'url2'
+      redirected_url = params[:redirected_url]
+
+      # Validate url_type and redirected_url
+      if url_type.in?([ "url1", "url2" ]) && redirected_url.present?
+        # Track in ClickHouse
+        UrlClick.track_click(
+          short_url: @short_url,
+          url_type: url_type,
+          redirected_url: redirected_url,
+          request: request,
+          user_id: @short_url.user_id
+        )
+
+        render json: { success: true }
+      else
+        render json: { success: false, error: "Invalid parameters" }, status: :unprocessable_entity
+      end
+    else
+      render json: { success: false, error: "Short URL not found" }, status: :not_found
+    end
   end
 
-  unless valid_short_uri_format?(short_uri)
-    render json: {
-      available: false,
-      message: "Invalid format. Only letters, numbers, hyphens, and underscores allowed."
-    }
-    return
-  end
+ # GET /short_urls/:id/stats - View analytics for a short URL
+ def stats
+    days = params[:days]&.to_i || 30
+    @stats = UrlClick.comprehensive_stats(@short_url.id, days: days)
+    @recent_clicks = UrlClick.recent_clicks(@short_url.id, limit: 50)
 
-  if ShortUrl.exists?(short_uri: short_uri)
-    render json: {
-      available: false,
-      message: "This short code is already taken. Please try another one."
-    }
-  else
-    render json: {
-      available: true,
-      message: "This short code is available! ✓"
-    }
+    respond_to do |format|
+      format.html { render :stats }
+      format.json { render json: @stats }
+    end
   end
-end
+  def check_availability
+    short_uri = params[:short_uri].to_s.strip.downcase
+
+    if short_uri.blank?
+      render json: { available: true, message: "" }
+      return
+    end
+
+    unless valid_short_uri_format?(short_uri)
+      render json: {
+        available: false,
+        message: "Invalid format. Only letters, numbers, hyphens, and underscores allowed."
+      }
+      return
+    end
+
+    if ShortUrl.exists?(short_uri: short_uri)
+      render json: {
+        available: false,
+        message: "This short code is already taken. Please try another one."
+      }
+    else
+      render json: {
+        available: true,
+        message: "This short code is available! ✓"
+      }
+    end
+  end
 
   private
 
   def set_short_url
-    @short_url = current_user.short_urls.find(params[:id])
+    if user_signed_in?
+      @short_url = current_user.short_urls.find(params[:id])
+    else
+      # Allow public access to stats (optional)
+      @short_url = ShortUrl.find(params[:id])
+    end
   end
+
 
   def short_url_params
     params.require(:short_url).permit(:url1, :url2, :short_uri)
