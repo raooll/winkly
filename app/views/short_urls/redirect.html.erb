@@ -3,6 +3,7 @@
 <head>
   <title>Redirecting...</title>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -51,32 +52,33 @@
 
 <script>
     (function() {
-      // Get the short URL data from the server
+      
       const shortUri = '<%= @short_url.short_uri %>';
       const url1 = '<%= @short_url.url1 %>';
       const url2 = '<%= @short_url.url2.present? ? @short_url.url2 : "" %>';
       const csrfToken = '<%= form_authenticity_token %>';
       
-      // Generate a unique tracking ID for this short URL
       const trackingKey = `winkly_${shortUri}`;
-      
-      console.log('=== WINKLY URL ALTERNATION DEBUG ===');
-      console.log('Short URI:', shortUri);
-      console.log('URL 1:', url1);
-      console.log('URL 2:', url2);
-      console.log('Tracking Key:', trackingKey);
-      console.log('Timestamp:', new Date().toISOString());
-      
+
       // Function to get or create a unique visitor ID
       function getVisitorId() {
-        let visitorId = localStorage.getItem('winkly_visitor_id');
+        let visitorId;
+        try {
+          visitorId = localStorage.getItem('winkly_visitor_id');
+        } catch (e) {
+          visitorId = sessionStorage.getItem('winkly_visitor_id');
+        }
+        
         if (!visitorId) {
-          // Generate a 32-character hex string (like UUID)
           visitorId = Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
-          localStorage.setItem('winkly_visitor_id', visitorId);
-          console.log('Created NEW visitor ID:', visitorId);
+          
+          try {
+            localStorage.setItem('winkly_visitor_id', visitorId);
+          } catch (e) {
+            sessionStorage.setItem('winkly_visitor_id', visitorId);
+          }
         } else {
           console.log('Found EXISTING visitor ID:', visitorId);
         }
@@ -85,7 +87,33 @@
       
       // Function to send tracking data to server (ClickHouse)
       async function trackClick(urlType, redirectUrl) {
+        const trackingData = {
+          url_type: urlType,
+          redirected_url: redirectUrl,
+          visitor_id: getVisitorId(),
+          user_agent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Use sendBeacon as primary method (more reliable on mobile)
+        if (navigator.sendBeacon) {
+          try {
+            const blob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
+            const success = navigator.sendBeacon(
+              `/${shortUri}/track`,
+              blob
+            );
+            if (success) {
+              return true;
+            }
+          } catch (error) {
+            console.error('sendBeacon failed:', error);
+          }
+        }
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          
           const response = await fetch(`/${shortUri}/track`, {
             method: 'POST',
             headers: {
@@ -93,80 +121,73 @@
               'X-CSRF-Token': csrfToken,
               'Accept': 'application/json'
             },
-            body: JSON.stringify({
-              url_type: urlType,
-              redirected_url: redirectUrl,
-              visitor_id: getVisitorId()
-            })
+            body: JSON.stringify(trackingData),
+            keepalive: true, // Important for mobile
+            signal: controller.signal
           });
           
+          clearTimeout(timeoutId);
+          
           if (response.ok) {
-            console.log('✓ Click tracked successfully in ClickHouse');
+            const result = await response.json();
+            console.log('✓ Click tracked via fetch:', result);
+            return true;
           } else {
-            console.error('✗ Tracking failed:', response.status);
+            const errorText = await response.text();
+            return false;
           }
         } catch (error) {
-          console.error('✗ Tracking error:', error);
+          return false;
         }
       }
       
-      // Function to determine which URL to redirect to
       function getRedirectUrl() {
-        console.log('\n--- Starting URL Selection Logic ---');
-        
-        // If there's no second URL, always redirect to url1
-        if (!url2) {
-          console.log('Decision: Only ONE URL configured, using URL 1');
+        if (!url2 || url2 === '') {
           return { url: url1, type: 'url1' };
         }
         
-        console.log('Decision: TWO URLs configured, checking tracking...');
         
-        // Get visitor's tracking data for this specific short URL
         const visitorId = getVisitorId();
-        let trackingData = localStorage.getItem(trackingKey);
+        let trackingData;
         
-        console.log('Raw tracking data from localStorage:', trackingData);
+        try {
+          trackingData = localStorage.getItem(trackingKey);
+        } catch (e) {
+          try {
+            trackingData = sessionStorage.getItem(trackingKey);
+          } catch (e2) {
+            trackingData = null;
+          }
+        }
+        
         
         if (trackingData) {
-          console.log('Tracking data EXISTS for this short URL');
           
-          // Parse existing tracking data
           try {
             const data = JSON.parse(trackingData);
-            console.log('Parsed tracking data:', JSON.stringify(data, null, 2));
             
-            // Check if this visitor has clicked this link before
             if (data.visitorId === visitorId) {
-              console.log('Decision: SAME VISITOR returning');
-              console.log('Last URL used:', data.lastUrl);
-              console.log('Last URL === URL 1?', data.lastUrl === url1);
-              console.log('Last URL === URL 2?', data.lastUrl === url2);
               
-              // Same visitor - alternate the URL
               const lastUrl = data.lastUrl;
               const nextUrl = lastUrl === url1 ? url2 : url1;
               const nextType = lastUrl === url1 ? 'url2' : 'url1';
               
-              console.log('ALTERNATING: Next URL will be:', nextUrl);
-              console.log('Previous click count:', data.clickCount || 0);
-              
-              // Update tracking data
+   
               const newTrackingData = {
                 visitorId: visitorId,
                 lastUrl: nextUrl,
                 clickCount: (data.clickCount || 0) + 1,
                 lastVisit: new Date().toISOString()
               };
-              localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
-              console.log('Updated tracking data:', JSON.stringify(newTrackingData, null, 2));
+              
+              try {
+                localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              } catch (e) {
+                sessionStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              }
               
               return { url: nextUrl, type: nextType };
             } else {
-              console.log('Decision: DIFFERENT VISITOR (visitor ID mismatch)');
-              console.log('Stored visitor ID:', data.visitorId);
-              console.log('Current visitor ID:', visitorId);
-              console.log('Starting fresh with URL 1');
               
               // Different visitor - start fresh with url1
               const newTrackingData = {
@@ -175,15 +196,16 @@
                 clickCount: 1,
                 lastVisit: new Date().toISOString()
               };
-              localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
-              console.log('Created new tracking data:', JSON.stringify(newTrackingData, null, 2));
+              
+              try {
+                localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              } catch (e) {
+                sessionStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+              }
               
               return { url: url1, type: 'url1' };
             }
           } catch (e) {
-            // If parsing fails, reset with url1
-            console.error('ERROR parsing tracking data:', e);
-            console.log('Resetting to URL 1 due to parse error');
             
             const newTrackingData = {
               visitorId: visitorId,
@@ -191,46 +213,56 @@
               clickCount: 1,
               lastVisit: new Date().toISOString()
             };
-            localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
-            console.log('Reset tracking data:', JSON.stringify(newTrackingData, null, 2));
+            
+            try {
+              localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+            } catch (err) {
+              sessionStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+            }
             
             return { url: url1, type: 'url1' };
           }
         } else {
-          console.log('Decision: NO TRACKING DATA found (first visit to this short URL)');
-          console.log('Starting with URL 1');
-          
-          // First visit - save tracking data and redirect to url1
           const newTrackingData = {
             visitorId: visitorId,
             lastUrl: url1,
             clickCount: 1,
             lastVisit: new Date().toISOString()
           };
-          localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
-          console.log('Created initial tracking data:', JSON.stringify(newTrackingData, null, 2));
           
+          try {
+            localStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+          } catch (e) {
+            sessionStorage.setItem(trackingKey, JSON.stringify(newTrackingData));
+          }
           return { url: url1, type: 'url1' };
         }
       }
       
-      // Get the target URL and redirect
-      const redirectInfo = getRedirectUrl();
+      // Main execution
+      async function executeRedirect() {
+        try {
+          // Get the target URL
+          const redirectInfo = getRedirectUrl();
+
+          // Track the click (with timeout protection)
+          const trackingPromise = trackClick(redirectInfo.type, redirectInfo.url);
+          
+          // Wait for tracking with max 2 second timeout
+          const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+          await Promise.race([trackingPromise, timeoutPromise]);
+          // Redirect
+          window.location.href = redirectInfo.url;
+          
+        } catch (error) {
+          // Still redirect even if tracking fails
+          const redirectInfo = getRedirectUrl();
+          window.location.href = redirectInfo.url;
+        }
+      }
       
-      console.log('\n=== FINAL DECISION ===');
-      console.log('Redirecting to:', redirectInfo.url);
-      console.log('URL Type:', redirectInfo.type);
-      console.log('All localStorage keys:', Object.keys(localStorage));
-      console.log('=====================================\n');
-      
-      // Track the click in ClickHouse (fire and forget)
-      trackClick(redirectInfo.type, redirectInfo.url);
-      
-      // Redirect after a short delay (for better UX and to allow tracking)
-      setTimeout(function() {
-        console.log('Executing redirect now...');
-        window.location.href = redirectInfo.url;
-      }, 200);
+      // Start the redirect process
+      executeRedirect();
     })();
   </script>
 </body>

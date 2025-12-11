@@ -1,0 +1,332 @@
+<%= render layout: 'layouts/dashboard_layout' do %>
+<div class="container mx-auto px-3 py-4 max-w-7xl">
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <!-- Total URLs -->
+    <div class="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg shadow-md p-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium opacity-90">Total Short URLs</p>
+          <p class="text-3xl font-bold mt-2"><%= @all_stats[:total_urls] %></p>
+        </div>
+        <svg class="w-12 h-12 opacity-30" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd"></path>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Total Clicks -->
+    <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium opacity-90">Total Clicks</p>
+          <p class="text-3xl font-bold mt-2"><%= @all_stats[:total_clicks] %></p>
+        </div>
+        <svg class="w-12 h-12 opacity-30" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Unique Visitors -->
+    <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md p-5 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium opacity-90">Unique Visitors</p>
+          <p class="text-3xl font-bold mt-2"><%= @all_stats[:total_unique_visitors] %></p>
+        </div>
+        <svg class="w-12 h-12 opacity-30" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clicks Over Time Chart -->
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold mb-3">Clicks Over Time (Last 30 Days)</h2>
+    <div class="h-64">
+      <canvas id="aggregateClicksChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Device & Browser Stats -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <!-- Device Distribution -->
+    <div class="bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold mb-3">Device Distribution</h2>
+      <div class="h-64 flex items-center justify-center">
+        <canvas id="devicePieChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Browser Stats -->
+    <div class="bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold mb-3">Top Browsers</h2>
+      <div class="space-y-2">
+        <% @aggregate_browser_stats.first(5).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-2 border-b border-gray-300 ">
+            <span class="font-medium text-gray-700"><%= stat['browser'] %> <%= stat['browser_version'] %></span>
+            <span class="text-gray-600 font-semibold"><%= stat['clicks'] %></span>
+          </div>
+        <% end %>
+        <% if @aggregate_browser_stats.empty? %>
+          <p class="text-gray-400 text-xs text-center py-4">No browser data available</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Geographic Distribution -->
+  <% if @aggregate_geographic_stats.any? %>
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold mb-3">Geographic Distribution</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-2 px-3 font-medium text-gray-600">Country</th>
+            <th class="text-left py-2 px-3 font-medium text-gray-600">City</th>
+            <th class="text-right py-2 px-3 font-medium text-gray-600">Clicks</th>
+            <th class="text-right py-2 px-3 font-medium text-gray-600">Unique</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @aggregate_geographic_stats.first(10).each do |row| %>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-2 px-3"><%= row['country'].presence || 'Unknown' %></td>
+              <td class="py-2 px-3"><%= row['city'].presence || 'Unknown' %></td>
+              <td class="text-right py-2 px-3 font-semibold"><%= row['clicks'] %></td>
+              <td class="text-right py-2 px-3"><%= row['unique_visitors'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% end %>
+
+  <!-- Individual URL Performance -->
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold mb-4">Individual URL Performance</h2>
+    <div class="space-y-3">
+      <% @all_stats[:url_stats].each do |url_stat| %>
+        <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+          <div class="flex justify-between items-start mb-3">
+           
+              <code class="text-xs font-mono text-indigo-600 ">
+                <%= link_to "#{request.base_url}/#{url_stat[:short_url].short_uri}", short_redirect_path(url_stat[:short_url].short_uri), target: "_blank", class: "hover:underline" %>
+              </code>
+              <div class="text-xs text-gray-600 flex items-center justify-center space-x-3">
+                <p><strong>URL 1:</strong> <%= truncate(url_stat[:short_url].url1, length: 60) %></p>
+                <% if url_stat[:short_url].url2.present? %>
+                  <p><strong>URL 2:</strong> <%= truncate(url_stat[:short_url].url2, length: 60) %></p>
+                <% end %>
+              </div>
+         
+            <%= link_to stats_short_url_path(url_stat[:short_url]), class: "ml-4 text-indigo-600 hover:text-indigo-700 text-xs font-medium inline-flex items-center" do %>
+              View Details →
+            <% end %>
+          </div>
+          
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-gray-50 rounded p-2 text-center">
+              <p class="text-lg font-bold text-gray-900"><%= url_stat[:stats][:total_clicks] %></p>
+              <p class="text-xs text-gray-600">Total Clicks</p>
+            </div>
+            
+            <% url_stat[:stats][:url_type_breakdown].each do |breakdown| %>
+              <div class="bg-gray-50 rounded p-2 text-center">
+                <p class="text-lg font-bold <%= breakdown['url_type'] == 'url1' ? 'text-blue-600' : 'text-green-600' %>">
+                  <%= breakdown['count'] %>
+                </p>
+                <p class="text-xs text-gray-600"><%= breakdown['url_type'].upcase %> Clicks</p>
+              </div>
+            <% end %>
+            
+            <div class="bg-gray-50 rounded p-2 text-center">
+              <p class="text-lg font-bold text-purple-600">
+                <%= url_stat[:stats][:url_type_breakdown].sum { |s| s['unique_visitors'].to_i } %>
+              </p>
+              <p class="text-xs text-gray-600">Unique Visitors</p>
+            </div>
+          </div>
+        </div>
+      <% end %>
+      
+      <% if @all_stats[:url_stats].empty? %>
+        <p class="text-gray-400 text-sm text-center py-8">No URLs created yet</p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Recent Activity -->
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold mb-3">Recent Activity (Last 100 Clicks)</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-2 px-2 font-medium text-gray-600">Time</th>
+            <th class="text-left py-2 px-2 font-medium text-gray-600">Short URL</th>
+            <th class="text-left py-2 px-2 font-medium text-gray-600">URL Type</th>
+            <th class="text-left py-2 px-2 font-medium text-gray-600">Device</th>
+            <th class="text-left py-2 px-2 font-medium text-gray-600">Browser</th>
+            <th class="text-left py-2 px-2 font-medium text-gray-600">Location</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @recent_clicks.each do |click| %>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-2 px-2 text-gray-600"><%= click.clicked_at.strftime("%m/%d %H:%M") %></td>
+              <td class="py-2 px-2">
+                <code class="text-xs font-mono text-gray-700">/<%= click.short_uri %></code>
+              </td>
+              <td class="py-2 px-2">
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium <%= click.url_type == 'url1' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700' %>">
+                  <%= click.url_type %>
+                </span>
+              </td>
+              <td class="py-2 px-2 capitalize text-gray-600"><%= click.device_type %></td>
+              <td class="py-2 px-2 text-gray-600"><%= click.browser %></td>
+              <td class="py-2 px-2 text-gray-600"><%= [click.city, click.country].compact.join(", ").presence || "Unknown" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <% if @recent_clicks.empty? %>
+        <p class="text-gray-400 text-xs text-center py-6">No clicks recorded yet</p>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script data-turbo-track="reload">
+  document.addEventListener('DOMContentLoaded', initializeDashboardCharts);
+  document.addEventListener('turbo:load', initializeDashboardCharts);
+  
+  function initializeDashboardCharts() {
+    if (typeof Chart === 'undefined') {
+      console.error('Chart.js is not loaded');
+      return;
+    }
+
+    const clicksData = <%= raw @clicks_over_time.to_json %>;
+    const deviceData = <%= raw @aggregate_device_stats.to_json %>;
+    
+    // Clicks Over Time Chart
+    const clicksCanvas = document.getElementById('aggregateClicksChart');
+    if (clicksCanvas && clicksData.length > 0) {
+      const ctx = clicksCanvas.getContext('2d');
+      
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: clicksData.map(d => d.date).reverse(),
+          datasets: [{
+            label: 'Total Clicks',
+            data: clicksData.map(d => d.clicks).reverse(),
+            borderColor: 'rgba(99, 102, 241, 1)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 5
+          }, {
+            label: 'Unique Visitors',
+            data: clicksData.map(d => d.unique_visitors).reverse(),
+            borderColor: 'rgba(16, 185, 129, 1)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { font: { size: 10 } },
+              grid: { color: 'rgba(0, 0, 0, 0.05)' }
+            },
+            x: {
+              ticks: { font: { size: 9 } },
+              grid: { display: false }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                padding: 10,
+                font: { size: 11 },
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 10,
+              cornerRadius: 4
+            }
+          }
+        }
+      });
+    }
+    
+    // Device Distribution Pie Chart
+    const deviceCanvas = document.getElementById('devicePieChart');
+    if (deviceCanvas && deviceData.length > 0) {
+      const ctx = deviceCanvas.getContext('2d');
+      
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: deviceData.map(d => d.device_type.charAt(0).toUpperCase() + d.device_type.slice(1)),
+          datasets: [{
+            data: deviceData.map(d => d.clicks),
+            backgroundColor: [
+              'rgba(99, 102, 241, 0.8)',
+              'rgba(16, 185, 129, 0.8)',
+              'rgba(245, 158, 11, 0.8)',
+              'rgba(239, 68, 68, 0.8)'
+            ],
+            borderColor: [
+              'rgba(99, 102, 241, 1)',
+              'rgba(16, 185, 129, 1)',
+              'rgba(245, 158, 11, 1)',
+              'rgba(239, 68, 68, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          cutout: '65%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 10,
+                font: { size: 10 },
+                usePointStyle: true
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 8,
+              cornerRadius: 4
+            }
+          }
+        }
+      });
+    }
+  }
+</script>
+<% end %>

@@ -1,11 +1,5 @@
 <%= render layout: 'layouts/dashboard_layout' do %>
   <div class="p-4 sm:p-6 lg:p-8">
-
-    <div class="mb-10 text-center">
-      <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Welcome back!</h1>
-      <p class="text-lg text-gray-600">Create and manage your short URLs</p>
-    </div>
-
     <% if flash[:notice] %>
       <div id="flash-notice" class="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex items-start space-x-3 shadow-md animate-slideIn">
         <svg class="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -21,7 +15,6 @@
         </button>
       </div>
     <% end %>
-
     <% if flash[:alert] %>
       <div id="flash-alert" class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3 shadow-md animate-slideIn">
         <svg class="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,15 +31,18 @@
       </div>
     <% end %>
 
-    <div class="bg-white rounded-xl shadow-2xl p-6 sm:p-8 mb-12 border border-gray-100">
-      <h2 class="text-3xl font-bold text-gray-900 mb-2">Create Short URL</h2>
-      <p class="text-gray-500 mb-8">Create a short link that alternates between two destinations</p>
+   <div class="bg-white rounded-lg shadow-lg p-3 sm:p-4 mb-8 border border-gray-100">
+  <h2 class="text-2xl font-bold text-gray-900 mb-1">Create Short URL</h2>
+  <p class="text-gray-500 text-sm mb-6">Create a short link that alternates between two destinations</p>
 
-      <%= form_with url: short_urls_path, method: :post, local: true, class: "space-y-6", id: "short-url-form" do |f| %>
-        
+  <%= form_with url: short_urls_path, method: :post, local: true, id: "short-url-form" do |f| %>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- Left Column: URL Inputs -->
+      <div class="">
         <div>
-          <label for="url1" class="block text-sm font-semibold text-gray-700 mb-2">
-            First URL <span class="text-red-600">*</span>
+          <label for="url1" class="block text-sm font-medium text-gray-700 mb-1.5">
+            First URL <span class="text-red-500">*</span>
           </label>
           <input 
             type="url" 
@@ -54,151 +50,148 @@
             id="url1" 
             required
             placeholder="https://example.com/page1"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out"
+            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
           />
-          <div id="url1-validation" class="mt-2 text-sm min-h-[20px]"></div>
+          <div id="url1-validation" class="mt-1 text-xs min-h-[16px]"></div>
         </div>
 
         <div>
-          <label for="url2" class="block text-sm font-semibold text-gray-700 mb-2">
-            Second URL <span class="text-gray-400">(Optional)</span>
+          <label for="url2" class="block text-sm font-medium text-gray-700 mb-1.5">
+            Second URL <span class="text-gray-400 text-xs">(Optional)</span>
           </label>
           <input 
             type="url" 
             name="short_url[url2]" 
             id="url2"
             placeholder="https://example.com/page2"
-            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out"
+            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
           />
-          <div id="url2-validation" class="mt-2 text-sm min-h-[20px]"></div>
+          <div id="url2-validation" class="mt-1 text-xs min-h-[16px]"></div>
         </div>
+      </div>
 
+      <!-- Right Column: Custom Code and Button -->
+      <div class="">
         <div>
-          <label for="short_uri" class="block text-sm font-semibold text-gray-700 mb-2">
-            Custom Short Code <span class="text-gray-400">(Optional)</span>
+          <label for="short_uri" class="block text-sm font-medium text-gray-700 mb-1.5">
+            Custom Short Code <span class="text-gray-400 text-xs">(Optional)</span>
           </label>
-          <div class="flex items-center space-x-2">
-            <div class="flex-1 relative">
-              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <span class="text-gray-500 text-base font-mono">winkly.app/</span>
-              </div>
-              <input 
-                type="text" 
-                name="short_url[short_uri]" 
-                id="short_uri"
-                placeholder="my-link"
-                pattern="[a-zA-Z0-9_-]+"
-                class="w-full pl-36 sm:pl-40 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out font-mono"
-              />
+          <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <span class="text-gray-500 text-sm font-mono">winkly.app/</span>
             </div>
+            <input 
+              type="text" 
+              name="short_url[short_uri]" 
+              id="short_uri"
+              placeholder="my-link"
+              pattern="[a-zA-Z0-9_-]+"
+              class="w-full pl-28 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition font-mono"
+            />
           </div>
-          <div id="short-uri-validation" class="mt-2 text-sm min-h-[20px]"></div>
-          <p class="mt-1 text-xs text-gray-500">Leave blank to generate a random 5-character code.</p>
+          <div id="short-uri-validation" class="mt-1 text-xs min-h-[16px]"></div>
         </div>
 
-        <div class="pt-4 flex justify-end">
+        <div class="flex items-end justify-end pt-5">
           <%= f.submit "Create Short URL", 
               id: "submit-button",
-              class: "w-full sm:w-auto px-8 py-3 text-lg font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-xl transition duration-150 ease-in-out cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" %>
+              class: "px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 shadow-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" %>
         </div>
-      <% end %>
-    </div>
-    
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 mt-12">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">My Short URLs</h1>
-        <p class="text-lg text-gray-600 mt-1">Manage all your shortened links</p>
       </div>
-      <%= link_to root_path, class: "mt-4 sm:mt-0 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium inline-flex items-center shadow-md transition duration-150 ease-in-out" do %>
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-        </svg>
-        Create New
-      <% end %>
+    </div>
+  <% end %>
+</div>
+    
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 ml-1 mt-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">My Short URLs</h1>
+        <p class="text-md text-gray-600 mt-1">Manage all your shortened links</p>
+      </div>
+     
     </div>
 
-    <% if @short_urls.any? %>
-      <div class="bg-white shadow-xl rounded-xl overflow-x-auto border border-gray-100">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Short URL</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destination URLs</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Clicks</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</th>
-              <th class="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-100">
-            <% @short_urls.each do |short_url| %>
-              <tr class="hover:bg-indigo-50/50 transition duration-150 ease-in-out">
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="flex items-center space-x-2">
-                    <code class="text-sm font-mono text-indigo-700 bg-indigo-100/70 px-3 py-1 rounded-md border border-indigo-200">
-                      <%= link_to "#{request.base_url}/#{short_url.short_uri}", short_redirect_path(short_url.short_uri), target: "_blank", class: "hover:underline" %>
-                    </code>
-                    <button onclick="copyToClipboard('<%= request.base_url %>/<%= short_url.short_uri %>')" class="text-gray-500 hover:text-indigo-600 transition duration-150 ease-in-out" title="Copy to clipboard">
-                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                      </svg>
-                    </button>
+ <% if @short_urls.any? %>
+  <div class="bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Short URL</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination URLs</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-100">
+        <% @short_urls.each do |short_url| %>
+          <tr class="hover:bg-gray-50 transition">
+            <td class="px-4 py-3 whitespace-nowrap">
+              <div class="flex items-center space-x-2">
+                <code class="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                  <%= link_to "#{request.base_url}/#{short_url.short_uri}", short_redirect_path(short_url.short_uri), target: "_blank", class: "hover:underline" %>
+                </code>
+                <button onclick="copyToClipboard('<%= request.base_url %>/<%= short_url.short_uri %>')" class="text-gray-400 hover:text-indigo-600 transition" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
+            <td class="px-4 py-3 max-w-sm">
+              <div class="text-xs space-y-1">
+                <div class="text-gray-900 truncate" title="<%= short_url.url1 %>">
+                  <span class="font-medium text-gray-600">URL 1:</span> <%= short_url.url1 %>
+                </div>
+                <% if short_url.url2.present? %>
+                  <div class="text-gray-900 truncate" title="<%= short_url.url2 %>">
+                    <span class="font-medium text-gray-600">URL 2:</span> <%= short_url.url2 %>
                   </div>
-                </td>
-                <td class="px-6 py-4 max-w-sm">
-                  <div class="text-sm space-y-1">
-                    <div class="text-gray-900 truncate" title="<%= short_url.url1 %>">
-                      <span class="font-medium text-gray-700">URL 1:</span> <span class="text-xs sm:text-sm"><%= short_url.url1 %></span>
-                    </div>
-                    <% if short_url.url2.present? %>
-                      <div class="text-gray-900 truncate" title="<%= short_url.url2 %>">
-                        <span class="font-medium text-gray-700">URL 2:</span> <span class="text-xs sm:text-sm"><%= short_url.url2 %></span>
-                      </div>
-                    <% else %>
-                      <div class="text-gray-500 text-xs mt-1">No alternating URL</div>
-                    <% end %>
-                  </div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full bg-green-100 text-green-800">
-                    <%= short_url.click_count %>
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <%= short_url.created_at.strftime("%b %d, %Y") %>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div class="flex items-center space-x-3">
-                    <%= link_to stats_short_url_path(short_url), class: "text-indigo-600 hover:text-indigo-800 transition duration-150 ease-in-out inline-flex items-center" do %>
-                      <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                      </svg>
-                      Stats
-                    <% end %>
-                    <%= button_to "Delete", short_url_path(short_url), method: :delete, 
-                        data: { confirm: "Are you sure you want to delete this short URL?" },
-                        class: "text-red-600 hover:text-red-800 transition duration-150 ease-in-out" %>
-                  </div>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
-    <% else %>
-      <div class="bg-white rounded-xl shadow-xl p-12 text-center border border-gray-100">
-        <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-        </svg>
-        <h3 class="mt-4 text-xl font-bold text-gray-900">No short URLs yet</h3>
-        <p class="mt-2 text-base text-gray-500">Get started by creating your first short URL.</p>
-        <%= link_to root_path, class: "mt-8 inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition duration-150 ease-in-out" do %>
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          Create Short URL
+                <% else %>
+                  <div class="text-gray-400 text-xs">No alternating URL</div>
+                <% end %>
+              </div>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap">
+              <span class="px-2 py-1 inline-flex text-xs font-semibold rounded-full bg-green-50 text-green-700 border border-green-100">
+                <%= short_url.click_count %>
+              </span>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+              <%= short_url.created_at.strftime("%b %d, %Y") %>
+            </td>
+            <td class="px-4 py-3 whitespace-nowrap text-xs font-medium">
+              <div class="flex items-center space-x-2">
+                <%= link_to stats_short_url_path(short_url), class: "text-indigo-600 hover:text-indigo-700 transition inline-flex items-center" do %>
+                  <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                  </svg>
+                  Stats
+                <% end %>
+                <%= button_to "Delete", short_url_path(short_url), method: :delete, 
+                    data: { confirm: "Are you sure you want to delete this short URL?" },
+                    class: "text-red-600 hover:text-red-700 transition" %>
+              </div>
+            </td>
+          </tr>
         <% end %>
-      </div>
+      </tbody>
+    </table>
+  </div>
+<% else %>
+  <div class="bg-white rounded-lg shadow-md p-8 text-center border border-gray-200">
+    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+    </svg>
+    <h3 class="mt-3 text-lg font-semibold text-gray-900">No short URLs yet</h3>
+    <p class="mt-1 text-sm text-gray-500">Get started by creating your first short URL.</p>
+    <%= link_to root_path, class: "mt-6 inline-flex items-center px-5 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition" do %>
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+      </svg>
+      Create Short URL
     <% end %>
+  </div>
+<% end %>
   </div>
 
   <style>
