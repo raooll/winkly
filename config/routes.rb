@@ -8,9 +8,15 @@ Rails.application.routes.draw do
     sessions: "users/sessions"
   }
 
-  # Authenticated users ke liye root ko short_urls#index set karo
+  # Authenticated users ke liye root ko dashboard set karo
   authenticated :user do
-    root "short_urls#index", as: :authenticated_root
+    root "short_urls#dashboard", as: :authenticated_root
+
+    # Dashboard route explicitly bhi define karo
+    get "dashboard", to: "short_urls#dashboard", as: :dashboard
+
+    # Short URLs listing
+    get "short_urls", to: "short_urls#index", as: :short_urls
 
     # Stats route with full path
     resources :short_urls, only: [] do
@@ -33,9 +39,9 @@ Rails.application.routes.draw do
 
   # Tracking endpoint - redirect se pehle hona chahiye
   post "/:short_uri/track", to: "short_urls#track_click",
-       constraints: { short_uri: /(?!admin|short_urls)[^\/]+/ }
+       constraints: { short_uri: /(?!admin|short_urls|dashboard)[^\/]+/ }
 
   # Short URL redirect - yeh sabse last mein hona chahiye
   get "/:short_uri", to: "short_urls#redirect", as: :short_redirect,
-      constraints: { short_uri: /(?!admin|short_urls)[^\/]+/ }
+      constraints: { short_uri: /(?!admin|short_urls|dashboard)[^\/]+/ }
 end

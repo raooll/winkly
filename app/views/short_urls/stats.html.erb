@@ -1,9 +1,9 @@
-
-
-<div class="container mx-auto px-4 py-8">
-  <div class="mb-6">
-    <h1 class="text-3xl font-bold mb-2">Analytics for /<%= @short_url.short_uri %></h1>
-    <div class="text-gray-600">
+<%= render layout: 'layouts/dashboard_layout' do %>
+<div class="container mx-auto px-3 py-4 max-w-6xl">
+  <!-- Header -->
+  <div class="mb-4 flex items-center justify-between ">
+    <h1 class="text-xl font-bold mb-1">Analytics for /<%= @short_url.short_uri %></h1>
+    <div class="text-xs text-gray-600 space-x-2 flex items-center justify-center">
       <p><strong>URL 1:</strong> <%= @short_url.url1 %></p>
       <% if @short_url.url2.present? %>
         <p><strong>URL 2:</strong> <%= @short_url.url2 %></p>
@@ -11,94 +11,119 @@
     </div>
   </div>
 
-  <!-- Summary Cards with Pie Charts -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-    <!-- Total Clicks Card -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-gray-700 text-lg font-semibold mb-4 text-center">Total Clicks Distribution</h3>
-      <div class="flex items-center justify-center">
-        <canvas id="clicksPieChart" width="300" height="300"></canvas>
+  <!-- Combined Summary Card with Animated Chart -->
+<div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+  <h3 class="text-gray-700 text-xs font-semibold mb-2 text-center">Traffic Overview</h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+    <!-- Animated Pie Chart -->
+    <div class="flex items-center justify-center" style="height: 200px;">
+      <canvas id="combinedPieChart"></canvas>
+    </div>
+    <!-- Stats Summary -->
+    <div class="space-y-2">
+      <!-- Total Clicks -->
+      <div class="text-center p-1.5 bg-blue-50 rounded">
+        <p class="text-xl font-bold text-blue-600"><%= @stats[:total_clicks] %></p>
+        <p class="text-xs text-gray-600">Total Clicks</p>
       </div>
-      <div class="text-center mt-4">
-        <p class="text-5xl font-bold text-blue-600"><%= @stats[:total_clicks] %></p>
-        <p class="text-gray-500 mt-2">Total Clicks</p>
+      
+      <!-- URL Breakdown -->
+      <div class="grid grid-cols-2 gap-1.5">
+        <% 
+          # Create a hash for easy lookup
+          url_data = {}
+          @stats[:url_type_breakdown].each do |stat|
+            url_data[stat['url_type']] = stat
+          end
+          
+          # Display both URL1 and URL2, with defaults if missing
+          ['url1', 'url2'].each do |url_type|
+            stat = url_data[url_type] || {'url_type' => url_type, 'count' => 0, 'unique_visitors' => 0}
+        %>
+          <div class="text-center p-1.5 bg-gray-50 rounded border border-gray-200">
+            <p class="text-xs text-gray-500"><%= stat['url_type'].upcase %></p>
+            <p class="text-lg font-bold <%= stat['url_type'] == 'url1' ? 'text-blue-600' : 'text-green-600' %>">
+              <%= stat['count'] %>
+            </p>
+            <p class="text-xs text-gray-400"><%= stat['unique_visitors'] %> unique</p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Clicks Over Time -->
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <div class="flex justify-between items-center mb-2">
+      <h2 class="text-sm font-semibold">Clicks Over Time</h2>
+      <div class="flex gap-1.5">
+        <button onclick="updateTimeRange(7)" id="btn-7days" class="px-3 py-2 text-xs rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition">
+          7 Days
+        </button>
+        <button onclick="updateTimeRange(30)" id="btn-30days" class="px-3 py-2 text-xs rounded-md bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition">
+          30 Days
+        </button>
+      </div>
+    </div>
+    <div class="h-48">
+      <canvas id="clicksBarChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Device & Browser Stats Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <!-- Device Stats -->
+    <div class="bg-white rounded-lg shadow-sm p-3">
+      <h2 class="text-sm font-semibold mb-2">Device Types</h2>
+      <div class="space-y-1">
+        <% @stats[:device_stats].each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-1.5 border-b border-gray-100 last:border-0">
+            <span class="font-medium capitalize text-gray-700"><%= stat['device_type'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
+            </div>
+          </div>
+        <% end %>
       </div>
     </div>
 
-    <!-- Unique Visitors Card -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-gray-700 text-lg font-semibold mb-4 text-center">Unique Visitors by URL</h3>
-      <div class="flex items-center justify-center">
-        <canvas id="visitorsPieChart" width="300" height="300"></canvas>
-      </div>
-      <div class="grid grid-cols-2 gap-4 mt-6">
-        <% @stats[:url_type_breakdown].each do |stat| %>
-          <div class="text-center">
-            <p class="text-2xl font-bold <%= stat['url_type'] == 'url1' ? 'text-blue-600' : 'text-green-600' %>">
-              <%= stat['unique_visitors'] %>
-            </p>
-            <p class="text-sm text-gray-500"><%= stat['url_type'].upcase %> Unique</p>
+    <!-- Browser Stats -->
+    <div class="bg-white rounded-lg shadow-sm p-3">
+      <h2 class="text-sm font-semibold mb-2">Top Browsers</h2>
+      <div class="space-y-1">
+        <% @stats[:browser_stats].first(5).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-1.5 border-b border-gray-300">
+            <span class="font-medium text-gray-700"><%= stat['browser'] %> <%= stat['browser_version'] %></span>
+            <span class="text-gray-600"><%= stat['clicks'] %></span>
           </div>
         <% end %>
       </div>
     </div>
   </div>
 
-  <!-- Clicks Over Time with Bar Chart -->
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">Clicks Over Time</h2>
-      <div class="flex gap-2">
-        <button onclick="updateTimeRange(7)" id="btn-7days" class="px-4 py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 transition">
-          7 Days
-        </button>
-        <button onclick="updateTimeRange(30)" id="btn-30days" class="px-4 py-2 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition">
-          30 Days
-        </button>
-      </div>
-    </div>
-    <div class="h-80">
-      <canvas id="clicksBarChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Device Stats -->
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-2xl font-bold mb-4">Device Types</h2>
-    <div class="space-y-2">
-      <% @stats[:device_stats].each do |stat| %>
-        <div class="flex justify-between items-center">
-          <span class="font-medium capitalize"><%= stat['device_type'] %></span>
-          <div class="flex items-center gap-4">
-            <span class="text-gray-600"><%= stat['clicks'] %> clicks</span>
-            <span class="text-gray-500 text-sm">(<%= stat['unique_visitors'] %> unique)</span>
-          </div>
-        </div>
-      <% end %>
-    </div>
-  </div>
-
   <!-- Geographic Stats -->
   <% if @stats[:geographic_stats].any? %>
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-2xl font-bold mb-4">Geographic Distribution</h2>
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <h2 class="text-sm font-semibold mb-2">Geographic Distribution</h2>
     <div class="overflow-x-auto">
-      <table class="min-w-full">
+      <table class="min-w-full text-xs">
         <thead>
-          <tr class="border-b">
-            <th class="text-left py-2 px-4">Country</th>
-            <th class="text-left py-2 px-4">City</th>
-            <th class="text-right py-2 px-4">Clicks</th>
-            <th class="text-right py-2 px-4">Unique Visitors</th>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-1.5 px-2 font-medium text-gray-600">Country</th>
+            <th class="text-left py-1.5 px-2 font-medium text-gray-600">City</th>
+            <th class="text-right py-1.5 px-2 font-medium text-gray-600">Clicks</th>
+            <th class="text-right py-1.5 px-2 font-medium text-gray-600">Unique</th>
           </tr>
         </thead>
         <tbody>
-          <% @stats[:geographic_stats].first(10).each do |row| %>
-            <tr class="border-b hover:bg-gray-50">
-              <td class="py-2 px-4"><%= row['country'].presence || 'Unknown' %></td>
-              <td class="py-2 px-4"><%= row['city'].presence || 'Unknown' %></td>
-              <td class="text-right py-2 px-4"><%= row['clicks'] %></td>
-              <td class="text-right py-2 px-4"><%= row['unique_visitors'] %></td>
+          <% @stats[:geographic_stats].first(6).each do |row| %>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-1.5 px-2"><%= row['country'].presence || 'Unknown' %></td>
+              <td class="py-1.5 px-2"><%= row['city'].presence || 'Unknown' %></td>
+              <td class="text-right py-1.5 px-2"><%= row['clicks'] %></td>
+              <td class="text-right py-1.5 px-2"><%= row['unique_visitors'] %></td>
             </tr>
           <% end %>
         </tbody>
@@ -107,83 +132,72 @@
   </div>
   <% end %>
 
-  <!-- Browser Stats -->
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-2xl font-bold mb-4">Browser Statistics</h2>
-    <div class="space-y-2">
-      <% @stats[:browser_stats].first(10).each do |stat| %>
-        <div class="flex justify-between items-center">
-          <span class="font-medium"><%= stat['browser'] %> <%= stat['browser_version'] %></span>
-          <span class="text-gray-600"><%= stat['clicks'] %> clicks</span>
-        </div>
-      <% end %>
-    </div>
-  </div>
-
   <!-- Referrer Stats -->
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-2xl font-bold mb-4">Top Referrers</h2>
-    <div class="space-y-2">
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <h2 class="text-sm font-semibold mb-2">Top Referrers</h2>
+    <div class="space-y-1">
       <% if @stats[:referrer_stats].any? %>
-        <% @stats[:referrer_stats].first(10).each do |stat| %>
-          <div class="flex justify-between items-center">
-            <span class="font-medium"><%= stat['referrer_domain'] %></span>
-            <div class="flex items-center gap-4">
-              <span class="text-gray-600"><%= stat['clicks'] %> clicks</span>
-              <span class="text-gray-500 text-sm">(<%= stat['unique_visitors'] %> unique)</span>
+        <% @stats[:referrer_stats].first(6).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-1.5 border-b border-gray-100 last:border-0">
+            <span class="font-medium text-gray-700"><%= stat['referrer_domain'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
             </div>
           </div>
         <% end %>
       <% else %>
-        <p class="text-gray-500">No referrer data available</p>
+        <p class="text-gray-400 text-xs">No referrer data available</p>
       <% end %>
     </div>
   </div>
 
   <!-- Hourly Pattern -->
-  <div class="bg-white rounded-lg shadow p-6 mb-8">
-    <h2 class="text-2xl font-bold mb-4">Hourly Click Pattern (Last 7 Days)</h2>
-    <div class="space-y-1">
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <h2 class="text-sm font-semibold mb-2">Hourly Click Pattern (Last 7 Days)</h2>
+    <div class="space-y-0.5">
       <% @stats[:hourly_pattern].each do |stat| %>
-        <div class="flex items-center gap-4">
-          <span class="w-16 text-right"><%= stat['hour'] %>:00</span>
-          <div class="flex-1 bg-gray-200 rounded h-6">
-            <div class="bg-blue-600 rounded h-6" style="width: <%= [stat['clicks'].to_f / @stats[:hourly_pattern].max_by { |s| s['clicks'] }['clicks'] * 100, 5].max %>%"></div>
+        <div class="flex items-center gap-2">
+          <span class="w-10 text-xs text-right text-gray-600"><%= stat['hour'] %>:00</span>
+          <div class="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full h-4 transition-all duration-500 ease-out hourly-bar" 
+                 style="width: <%= [stat['clicks'].to_f / @stats[:hourly_pattern].max_by { |s| s['clicks'] }['clicks'] * 100, 2].max %>%">
+            </div>
           </div>
-          <span class="w-16"><%= stat['clicks'] %> clicks</span>
+          <span class="w-10 text-xs text-gray-600"><%= stat['clicks'] %></span>
         </div>
       <% end %>
     </div>
   </div>
 
   <!-- Recent Clicks -->
-  <div class="bg-white rounded-lg shadow p-6">
-    <h2 class="text-2xl font-bold mb-4">Recent Clicks (Last 50)</h2>
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <h2 class="text-sm font-semibold mb-2">Recent Clicks (Last 50)</h2>
     <div class="overflow-x-auto">
-      <table class="min-w-full text-sm">
+      <table class="min-w-full text-xs">
         <thead>
-          <tr class="border-b">
-            <th class="text-left py-2 px-2">Time</th>
-            <th class="text-left py-2 px-2">URL</th>
-            <th class="text-left py-2 px-2">Device</th>
-            <th class="text-left py-2 px-2">Browser</th>
-            <th class="text-left py-2 px-2">Location</th>
-            <th class="text-left py-2 px-2">Referrer</th>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">Time</th>
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">URL</th>
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">Device</th>
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">Browser</th>
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">Location</th>
+            <th class="text-left py-1.5 px-1.5 font-medium text-gray-600">Referrer</th>
           </tr>
         </thead>
         <tbody>
           <% @recent_clicks.each do |click| %>
-            <tr class="border-b hover:bg-gray-50">
-              <td class="py-2 px-2"><%= click.clicked_at.strftime("%Y-%m-%d %H:%M") %></td>
-              <td class="py-2 px-2">
-                <span class="px-2 py-1 rounded text-xs <%= click.url_type == 'url1' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800' %>">
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-1.5 px-1.5 text-gray-600"><%= click.clicked_at.strftime("%m/%d %H:%M") %></td>
+              <td class="py-1.5 px-1.5">
+                <span class="px-1.5 py-0.5 rounded-full text-xs font-medium <%= click.url_type == 'url1' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700' %>">
                   <%= click.url_type %>
                 </span>
               </td>
-              <td class="py-2 px-2 capitalize"><%= click.device_type %></td>
-              <td class="py-2 px-2"><%= click.browser %></td>
-              <td class="py-2 px-2"><%= [click.city, click.country].compact.join(", ").presence || "Unknown" %></td>
-              <td class="py-2 px-2"><%= click.referrer_domain || "Direct" %></td>
+              <td class="py-1.5 px-1.5 capitalize text-gray-600"><%= click.device_type %></td>
+              <td class="py-1.5 px-1.5 text-gray-600"><%= click.browser %></td>
+              <td class="py-1.5 px-1.5 text-gray-600"><%= [click.city, click.country].compact.join(", ").presence || "Unknown" %></td>
+              <td class="py-1.5 px-1.5 text-gray-600"><%= click.referrer_domain || "Direct" %></td>
             </tr>
           <% end %>
         </tbody>
@@ -191,96 +205,107 @@
     </div>
   </div>
 
-  <div class="mt-8">
-    <%= link_to "← Back to Short URLs", short_urls_path, class: "text-blue-600 hover:underline" %>
-  </div>
+<div class="mt-4">
+    <%= link_to "← Back to Short URLs", short_urls_path, class: "text-indigo-600 hover:text-indigo-700 font-medium text-xs transition" %>
 </div>
+</div>
+
+<style>
+  @keyframes slideIn {
+    from {
+      width: 0;
+    }
+    to {
+      width: var(--target-width);
+    }
+  }
+  
+  .hourly-bar {
+    animation: slideIn 0.8s ease-out;
+  }
+</style>
 
 <script data-turbo-track="reload">
   document.addEventListener('DOMContentLoaded', initializeCharts);
   document.addEventListener('turbo:load', initializeCharts);
   
   function initializeCharts() {
-    // Data from Rails
     const statsData = <%= raw @stats.to_json %>;
     const shortUrlId = <%= @short_url.id %>;
     
-    // Wait for Chart.js to be available
     if (typeof Chart === 'undefined') {
       console.error('Chart.js is not loaded');
       return;
     }
     
-    // Pie Chart for Clicks Distribution
+    // Combined Animated Pie Chart
     const clicksData = statsData.url_type_breakdown;
-    const clicksPieCanvas = document.getElementById('clicksPieChart');
-    if (clicksPieCanvas) {
-      const clicksPieCtx = clicksPieCanvas.getContext('2d');
-      new Chart(clicksPieCtx, {
-        type: 'pie',
+    const combinedPieCanvas = document.getElementById('combinedPieChart');
+    
+    if (combinedPieCanvas) {
+      const combinedPieCtx = combinedPieCanvas.getContext('2d');
+      
+      new Chart(combinedPieCtx, {
+        type: 'doughnut',
         data: {
-          labels: clicksData.map(d => d.url_type.toUpperCase()),
+          labels: clicksData.map(d => `${d.url_type.toUpperCase()} (${d.count} clicks, ${d.unique_visitors} unique)`),
           datasets: [{
             data: clicksData.map(d => d.count),
-            backgroundColor: ['#3B82F6', '#10B981'],
-            borderWidth: 2,
-            borderColor: '#fff'
+            backgroundColor: [
+              'rgba(59, 130, 246, 0.8)',
+              'rgba(16, 185, 129, 0.8)'
+            ],
+            borderColor: [
+              'rgba(59, 130, 246, 1)',
+              'rgba(16, 185, 129, 1)'
+            ],
+            borderWidth: 1,
+            hoverOffset: 6,
+            hoverBorderWidth: 2
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
+          cutout: '70%',
           plugins: {
             legend: {
               position: 'bottom',
               labels: {
-                padding: 15,
-                font: { size: 14 }
+                padding: 4,
+                font: { 
+                  size: 8,
+                  weight: '500'
+                },
+                usePointStyle: true,
+                pointStyle: 'circle',
+                boxWidth: 5,
+                boxHeight: 5
               }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 6,
+              titleFont: { size: 10, weight: 'bold' },
+              bodyFont: { size: 9 },
+              cornerRadius: 4
             }
+          },
+          animation: {
+            animateRotate: true,
+            animateScale: true,
+            duration: 1200,
+            easing: 'easeInOutQuart'
           }
         }
       });
     }
 
-    // Pie Chart for Unique Visitors
-    const visitorsPieCanvas = document.getElementById('visitorsPieChart');
-    if (visitorsPieCanvas) {
-      const visitorsPieCtx = visitorsPieCanvas.getContext('2d');
-      new Chart(visitorsPieCtx, {
-        type: 'pie',
-        data: {
-          labels: clicksData.map(d => d.url_type.toUpperCase()),
-          datasets: [{
-            data: clicksData.map(d => d.unique_visitors),
-            backgroundColor: ['#3B82F6', '#10B981'],
-            borderWidth: 2,
-            borderColor: '#fff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                padding: 15,
-                font: { size: 14 }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // Initialize bar chart
     window.statsData = statsData;
     window.shortUrlId = shortUrlId;
     createBarChart(7);
   }
   
-  // Bar Chart for Clicks Over Time
   function createBarChart(days) {
     const clicksBarCanvas = document.getElementById('clicksBarChart');
     if (!clicksBarCanvas) return;
@@ -288,10 +313,8 @@
     const clicksBarCtx = clicksBarCanvas.getContext('2d');
     const timeData = window.statsData.clicks_over_time;
     
-    // Get unique dates and sort them
     const dates = [...new Set(timeData.map(d => d.date))].sort();
     
-    // Prepare datasets for URL1 and URL2
     const url1Data = dates.map(date => {
       const item = timeData.find(d => d.date === date && d.url_type === 'url1');
       return item ? item.clicks : 0;
@@ -302,7 +325,6 @@
       return item ? item.clicks : 0;
     });
     
-    // Destroy existing chart if it exists and is a Chart instance
     if (window.clicksBarChart && typeof window.clicksBarChart.destroy === 'function') {
       window.clicksBarChart.destroy();
     }
@@ -315,16 +337,18 @@
           {
             label: 'URL 1',
             data: url1Data,
-            backgroundColor: '#3B82F6',
-            borderColor: '#2563EB',
-            borderWidth: 1
+            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+            borderColor: 'rgba(37, 99, 235, 1)',
+            borderWidth: 1,
+            borderRadius: 3
           },
           {
             label: 'URL 2',
             data: url2Data,
-            backgroundColor: '#10B981',
-            borderColor: '#059669',
-            borderWidth: 1
+            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+            borderColor: 'rgba(5, 150, 105, 1)',
+            borderWidth: 1,
+            borderRadius: 3
           }
         ]
       },
@@ -335,12 +359,19 @@
           y: {
             beginAtZero: true,
             ticks: {
-              stepSize: 1
+              stepSize: 1,
+              font: { size: 9 }
+            },
+            grid: {
+              color: 'rgba(0, 0, 0, 0.05)'
             }
           },
           x: {
             grid: {
               display: false
+            },
+            ticks: {
+              font: { size: 9 }
             }
           }
         },
@@ -348,32 +379,41 @@
           legend: {
             position: 'top',
             labels: {
-              padding: 15,
-              font: { size: 14 }
+              padding: 8,
+              font: { size: 10 },
+              usePointStyle: true,
+              boxWidth: 8,
+              boxHeight: 8
             }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: 8,
+            cornerRadius: 4,
+            titleFont: { size: 10 },
+            bodyFont: { size: 9 }
           }
+        },
+        animation: {
+          duration: 800,
+          easing: 'easeInOutQuart'
         }
       }
     });
   }
   
-  // Update time range
   function updateTimeRange(days) {
-    // Update button styles
     document.getElementById('btn-7days').className = days === 7 
-      ? 'px-4 py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 transition'
-      : 'px-4 py-2 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition';
+      ? 'px-2 py-1 text-xs rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition'
+      : 'px-2 py-1 text-xs rounded-md bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition';
     
     document.getElementById('btn-30days').className = days === 30
-      ? 'px-4 py-2 rounded bg-blue-600 text-white font-medium hover:bg-blue-700 transition'
-      : 'px-4 py-2 rounded bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition';
+      ? 'px-2 py-1 text-xs rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition'
+      : 'px-2 py-1 text-xs rounded-md bg-gray-200 text-gray-700 font-medium hover:bg-gray-300 transition';
     
-    // Fetch new data
     fetch(`/short_urls/${window.shortUrlId}/stats.json?days=${days}`)
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return response.json();
       })
       .then(data => {
@@ -383,4 +423,4 @@
       .catch(error => console.error('Error fetching data:', error));
   }
 </script>
-
+<% end %>

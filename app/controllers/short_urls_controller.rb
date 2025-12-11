@@ -155,6 +155,43 @@ class ShortUrlsController < ApplicationController
       }
     end
   end
+  def dashboard
+  @short_urls = current_user.short_urls.order(created_at: :desc)
+
+  # Get stats for all URLs
+  @all_stats = {
+    total_urls: @short_urls.count,
+    total_clicks: 0,
+    total_unique_visitors: 0,
+    url_stats: []
+  }
+
+  @short_urls.each do |short_url|
+    stats = UrlClick.comprehensive_stats(short_url.id, days: 30)
+
+    @all_stats[:total_clicks] += stats[:total_clicks]
+
+    # Calculate unique visitors across all URLs
+    unique_count = stats[:url_type_breakdown].sum { |s| s["unique_visitors"].to_i }
+    @all_stats[:total_unique_visitors] += unique_count
+
+    @all_stats[:url_stats] << {
+      short_url: short_url,
+      stats: stats
+    }
+  end
+
+  # Get recent clicks across all URLs
+  @recent_clicks = UrlClick.where("short_url_id IN (?)", @short_urls.pluck(:id))
+                            .order("clicked_at DESC")
+                            .limit(100)
+
+  # Aggregate stats for charts
+  @aggregate_device_stats = aggregate_device_stats
+  @aggregate_browser_stats = aggregate_browser_stats
+  @aggregate_geographic_stats = aggregate_geographic_stats
+  @clicks_over_time = aggregate_clicks_over_time
+  end
 
   private
 
@@ -198,4 +235,114 @@ class ShortUrlsController < ApplicationController
 
     warnings.join(". ") if warnings.any?
   end
+
+  def aggregate_device_stats
+  config = UrlClick.send(:get_clickhouse_config)
+  return [] unless config
+
+  short_url_ids = current_user.short_urls.pluck(:id).join(",")
+  return [] if short_url_ids.empty?
+
+  query = <<~SQL
+    SELECT#{' '}
+      device_type,
+      count() as clicks,
+      uniq(ip_address) as unique_visitors
+    FROM url_clicks
+    WHERE short_url_id IN (#{short_url_ids})
+    GROUP BY device_type
+    ORDER BY clicks DESC
+    FORMAT JSONEachRow
+  SQL
+
+  result = UrlClick.send(:execute_raw, config, query)
+  UrlClick.send(:parse_json_result, result)
+rescue => e
+  Rails.logger.error("Aggregate device stats failed: #{e.message}")
+  []
+end
+
+def aggregate_browser_stats
+  config = UrlClick.send(:get_clickhouse_config)
+  return [] unless config
+
+  short_url_ids = current_user.short_urls.pluck(:id).join(",")
+  return [] if short_url_ids.empty?
+
+  query = <<~SQL
+    SELECT#{' '}
+      browser,
+      browser_version,
+      count() as clicks
+    FROM url_clicks
+    WHERE short_url_id IN (#{short_url_ids})
+      AND browser != ''
+    GROUP BY browser, browser_version
+    ORDER BY clicks DESC
+    LIMIT 10
+    FORMAT JSONEachRow
+  SQL
+
+  result = UrlClick.send(:execute_raw, config, query)
+  UrlClick.send(:parse_json_result, result)
+rescue => e
+  Rails.logger.error("Aggregate browser stats failed: #{e.message}")
+  []
+end
+
+def aggregate_geographic_stats
+  config = UrlClick.send(:get_clickhouse_config)
+  return [] unless config
+
+  short_url_ids = current_user.short_urls.pluck(:id).join(",")
+  return [] if short_url_ids.empty?
+
+  query = <<~SQL
+    SELECT#{' '}
+      country,
+      city,
+      count() as clicks,
+      uniq(ip_address) as unique_visitors
+    FROM url_clicks
+    WHERE short_url_id IN (#{short_url_ids})
+      AND country != ''
+    GROUP BY country, city
+    ORDER BY clicks DESC
+    LIMIT 20
+    FORMAT JSONEachRow
+  SQL
+
+  result = UrlClick.send(:execute_raw, config, query)
+  UrlClick.send(:parse_json_result, result)
+rescue => e
+  Rails.logger.error("Aggregate geographic stats failed: #{e.message}")
+  []
+end
+
+def aggregate_clicks_over_time
+  config = UrlClick.send(:get_clickhouse_config)
+  return [] unless config
+
+  short_url_ids = current_user.short_urls.pluck(:id).join(",")
+  return [] if short_url_ids.empty?
+
+  query = <<~SQL
+    SELECT#{' '}
+      toDate(clicked_at) as date,
+      count() as clicks,
+      uniq(ip_address) as unique_visitors
+    FROM url_clicks
+    WHERE short_url_id IN (#{short_url_ids})
+      AND clicked_at >= today() - 30
+    GROUP BY date
+    ORDER BY date DESC
+    FORMAT JSONEachRow
+  SQL
+
+  result = UrlClick.send(:execute_raw, config, query)
+  UrlClick.send(:parse_json_result, result)
+rescue => e
+  Rails.logger.error("Aggregate clicks over time failed: #{e.message}")
+  []
+end
 end
