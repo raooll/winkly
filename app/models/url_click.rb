@@ -3,83 +3,80 @@
 class UrlClick < ClickhouseRecord
   self.table_name = "url_clicks"
 
-  # Track a URL click with all necessary information
-  def self.track_click(short_url:, url_type:, redirected_url:, request:, user_id: nil)
-    require "net/http"
-    require "uri"
+def self.track_click(short_url:, url_type:, redirected_url:, request:, user_id: nil, visitor_id: nil)
+  require "net/http"
+  require "uri"
 
-    config = get_clickhouse_config
-    unless config
-      Rails.logger.error("ClickHouse config not available")
-      puts "ERROR: ClickHouse config not available" # Debug output
-      return false
-    end
-
-    click_id = generate_unique_id
-    timestamp = Time.current.strftime("%Y-%m-%d %H:%M:%S")
-
-    # Parse user agent
-    user_agent = request.user_agent || "Unknown"
-    browser_info = parse_user_agent(user_agent)
-
-    # Get IP and location info
-    ip_address = request.remote_ip
-    location_info = get_location_info(ip_address)
-
-    # Parse referrer
-    referrer = request.referer
-    referrer_domain = referrer ? URI.parse(referrer).host : nil rescue nil
-
-    query = <<~SQL
-      INSERT INTO url_clicks (
-        id, short_url_id, tracking_id, short_uri, redirected_to_url, url_type,
-        user_id, session_id,
-        user_agent, browser, browser_version, device_type, os, os_version,
-        ip_address, country, city, region,
-        referrer, referrer_domain,
-        clicked_at, created_at
-      ) VALUES (
-        #{click_id},
-        #{short_url.id},
-        '#{escape_string(short_url.tracking_id)}',
-        '#{escape_string(short_url.short_uri)}',
-        '#{escape_string(redirected_url)}',
-        '#{url_type}',
-        #{user_id || 'NULL'},
-        #{request.session_options[:id] ? "'#{escape_string(request.session_options[:id])}'" : 'NULL'},
-        '#{escape_string(user_agent)}',
-        '#{escape_string(browser_info[:browser])}',
-        '#{escape_string(browser_info[:version])}',
-        '#{escape_string(browser_info[:device_type])}',
-        '#{escape_string(browser_info[:os])}',
-        '#{escape_string(browser_info[:os_version])}',
-        '#{escape_string(ip_address)}',
-        '#{escape_string(location_info[:country])}',
-        '#{escape_string(location_info[:city])}',
-        '#{escape_string(location_info[:region])}',
-        #{referrer ? "'#{escape_string(referrer)}'" : 'NULL'},
-        #{referrer_domain ? "'#{escape_string(referrer_domain)}'" : 'NULL'},
-        '#{timestamp}',
-        '#{timestamp}'
-      )
-    SQL
-
-    execute_raw(config, query)
-    true
-  rescue => e
-    Rails.logger.error("ClickHouse URL click tracking failed: #{e.message}")
-    Rails.logger.error(e.backtrace.join("\n"))
-    false
+  config = get_clickhouse_config
+  unless config
+    Rails.logger.error("ClickHouse config not available")
+    return false
   end
 
-  # Analytics Methods
+  click_id = generate_unique_id
+  timestamp = Time.current.strftime("%Y-%m-%d %H:%M:%S")
 
-  # Get total clicks for a short URL
+  user_agent = request.user_agent || "Unknown"
+  browser_info = parse_user_agent(user_agent)
+
+  ip_address = request.remote_ip
+  location_info = get_location_info(ip_address)
+
+  referrer = request.referer
+  referrer_domain = referrer ? URI.parse(referrer).host : nil rescue nil
+
+  session_id = visitor_id || request.session_options[:id]
+
+  Rails.logger.info("Tracking click: id=#{click_id}, short_url_id=#{short_url.id}, url_type=#{url_type}, visitor_id=#{visitor_id}, ip=#{ip_address}")
+
+  query = <<~SQL
+    INSERT INTO url_clicks (
+      id, short_url_id, tracking_id, short_uri, redirected_to_url, url_type,
+      user_id, session_id,
+      user_agent, browser, browser_version, device_type, os, os_version,
+      ip_address, country, city, region,
+      referrer, referrer_domain,
+      clicked_at, created_at
+    ) VALUES (
+      #{click_id},
+      #{short_url.id},
+      '#{escape_string(short_url.tracking_id)}',
+      '#{escape_string(short_url.short_uri)}',
+      '#{escape_string(redirected_url)}',
+      '#{url_type}',
+      #{user_id || 'NULL'},
+      #{session_id ? "'#{escape_string(session_id.to_s)}'" : 'NULL'},
+      '#{escape_string(user_agent)}',
+      '#{escape_string(browser_info[:browser])}',
+      '#{escape_string(browser_info[:version])}',
+      '#{escape_string(browser_info[:device_type])}',
+      '#{escape_string(browser_info[:os])}',
+      '#{escape_string(browser_info[:os_version])}',
+      '#{escape_string(ip_address)}',
+      '#{escape_string(location_info[:country])}',
+      '#{escape_string(location_info[:city])}',
+      '#{escape_string(location_info[:region])}',
+      #{referrer ? "'#{escape_string(referrer)}'" : 'NULL'},
+      #{referrer_domain ? "'#{escape_string(referrer_domain)}'" : 'NULL'},
+      '#{timestamp}',
+      '#{timestamp}'
+    )
+  SQL
+
+  result = execute_raw(config, query)
+  Rails.logger.info("✓ ClickHouse insert successful")
+  true
+rescue => e
+  Rails.logger.error("ClickHouse URL click tracking failed: #{e.class} - #{e.message}")
+
+  false
+end
+
+
   def self.total_clicks(short_url_id)
     where("short_url_id = ?", short_url_id).count
   end
 
-  # Get clicks by URL type (url1 vs url2)
   def self.clicks_by_url_type(short_url_id)
     config = get_clickhouse_config
     return [] unless config
@@ -102,7 +99,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get clicks over time (daily)
   def self.clicks_over_time(short_url_id, days: 30)
     config = get_clickhouse_config
     return [] unless config
@@ -128,7 +124,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get geographic distribution
   def self.geographic_stats(short_url_id)
     config = get_clickhouse_config
     return [] unless config
@@ -155,7 +150,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get device type statistics
   def self.device_stats(short_url_id)
     config = get_clickhouse_config
     return [] unless config
@@ -179,7 +173,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get browser statistics
   def self.browser_stats(short_url_id)
     config = get_clickhouse_config
     return [] unless config
@@ -205,7 +198,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get referrer statistics
   def self.referrer_stats(short_url_id)
     config = get_clickhouse_config
     return [] unless config
@@ -231,7 +223,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get hourly click pattern
   def self.hourly_pattern(short_url_id, days: 7)
     config = get_clickhouse_config
     return [] unless config
@@ -255,7 +246,6 @@ class UrlClick < ClickhouseRecord
     []
   end
 
-  # Get comprehensive stats for a short URL
   def self.comprehensive_stats(short_url_id, days: 30)
     {
       total_clicks: total_clicks(short_url_id),
@@ -269,7 +259,6 @@ class UrlClick < ClickhouseRecord
     }
   end
 
-  # Get recent clicks for a short URL
   def self.recent_clicks(short_url_id, limit: 100)
     where("short_url_id = ?", short_url_id)
       .order("clicked_at DESC")
@@ -283,7 +272,6 @@ class UrlClick < ClickhouseRecord
   end
 
   def self.get_clickhouse_config
-    # Read directly from database.yml
     db_config = Rails.application.config.database_configuration
     env_config = db_config[Rails.env]
 
@@ -294,7 +282,6 @@ class UrlClick < ClickhouseRecord
 
     clickhouse_config = env_config["clickhouse"]
 
-    # Return configuration hash
     {
       host: clickhouse_config["host"],
       port: clickhouse_config["port"] || 8443,
@@ -340,7 +327,6 @@ class UrlClick < ClickhouseRecord
     str.to_s.gsub("'", "''").gsub("\\", "\\\\\\\\")
   end
 
-  # Parse user agent string
   def self.parse_user_agent(user_agent)
     browser = "Unknown"
     version = ""
@@ -350,7 +336,6 @@ class UrlClick < ClickhouseRecord
 
     ua = user_agent.downcase
 
-    # Detect browser
     if ua.include?("chrome") && !ua.include?("edg")
       browser = "Chrome"
       version = ua[/chrome\/([\d.]+)/, 1] || ""
@@ -365,7 +350,6 @@ class UrlClick < ClickhouseRecord
       version = ua[/edg\/([\d.]+)/, 1] || ""
     end
 
-    # Detect OS
     if ua.include?("windows")
       os = "Windows"
       os_version = ua[/windows nt ([\d.]+)/, 1] || ""
@@ -382,7 +366,6 @@ class UrlClick < ClickhouseRecord
       os = "Linux"
     end
 
-    # Detect device type
     if ua.include?("mobile") || ua.include?("android") || ua.include?("iphone")
       device_type = "mobile"
     elsif ua.include?("tablet") || ua.include?("ipad")
@@ -398,7 +381,6 @@ class UrlClick < ClickhouseRecord
     }
   end
 
-  # Get location info from IP (placeholder - integrate with IP geolocation service)
   def self.get_location_info(ip_address)
     {
       country: "",

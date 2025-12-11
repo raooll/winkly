@@ -1,103 +1,122 @@
 # app/controllers/short_urls_controller.rb
 
 class ShortUrlsController < ApplicationController
-  before_action :authenticate_user!, except: [ :redirect, :check_availability, :stats ]
+  before_action :authenticate_user!, except: [ :redirect, :check_availability, :stats, :track_click ]
   before_action :set_short_url, only: [ :destroy, :stats ]
 
-  # GET /short_urls
+  skip_before_action :verify_authenticity_token, only: [ :track_click ]
+
   def index
     @short_urls = current_user.short_urls.order(created_at: :desc)
   end
 
-  # POST /short_urls
   def create
     @short_url = current_user.short_urls.new(short_url_params)
 
-    # Check for duplicate URLs (warning, not blocking)
     duplicate_warning = check_duplicate_urls(@short_url)
 
-    # Generate random short_uri if not provided
     if @short_url.short_uri.blank?
       @short_url.short_uri = generate_unique_short_uri
     else
-      # Validate custom short_uri format
       unless valid_short_uri_format?(@short_url.short_uri)
-        flash[:alert] = "❌ Short code can only contain letters, numbers, hyphens, and underscores"
+        flash[:alert] = "Short code can only contain letters, numbers, hyphens, and underscores"
         redirect_to short_urls_path and return
       end
 
-      # Check if short_uri already exists
       if ShortUrl.exists?(short_uri: @short_url.short_uri)
-        flash[:alert] = "❌ This short code '#{@short_url.short_uri}' is already taken. Please try another one."
+        flash[:alert] = "This short code '#{@short_url.short_uri}' is already taken. Please try another one."
         redirect_to short_urls_path and return
       end
     end
 
     if @short_url.save
-      success_message = "✅ Short URL created successfully! Your link: #{request.base_url}/#{@short_url.short_uri}"
+      success_message = "Short URL created successfully! Your link: #{request.base_url}/#{@short_url.short_uri}"
       success_message += "<br>⚠️ #{duplicate_warning}" if duplicate_warning.present?
       flash[:notice] = success_message.html_safe
       redirect_to short_urls_path
     else
-      flash[:alert] = "❌ " + @short_url.errors.full_messages.join(", ")
+      flash[:alert] = "" + @short_url.errors.full_messages.join(", ")
       redirect_to short_urls_path
     end
   end
 
-  # DELETE /short_urls/:id
   def destroy
     short_uri = @short_url.short_uri
     @short_url.destroy
-    flash[:notice] = "🗑️ Short URL '#{short_uri}' deleted successfully"
+    flash[:notice] = "Short URL '#{short_uri}' deleted successfully"
     redirect_to short_urls_path
   end
 
-  # GET /:short_uri (redirect to actual URL using client-side localStorage)
   def redirect
     @short_url = ShortUrl.find_by(short_uri: params[:short_uri])
 
     if @short_url
-      # Increment total click count (for statistics)
       @short_url.increment!(:click_count)
 
-      # Render a page that uses localStorage to determine which URL to redirect to
       render "redirect", layout: false
     else
-      flash[:alert] = "❌ Short URL not found"
+      flash[:alert] = "Short URL not found"
       redirect_to root_path
     end
   end
 
-  # POST /:short_uri/track - Called from client-side to track the click
   def track_click
     @short_url = ShortUrl.find_by(short_uri: params[:short_uri])
 
-    if @short_url
-      url_type = params[:url_type] # 'url1' or 'url2'
-      redirected_url = params[:redirected_url]
-
-      # Validate url_type and redirected_url
-      if url_type.in?([ "url1", "url2" ]) && redirected_url.present?
-        # Track in ClickHouse
-        UrlClick.track_click(
-          short_url: @short_url,
-          url_type: url_type,
-          redirected_url: redirected_url,
-          request: request,
-          user_id: @short_url.user_id
-        )
-
-        render json: { success: true }
-      else
-        render json: { success: false, error: "Invalid parameters" }, status: :unprocessable_entity
-      end
-    else
+    unless @short_url
+      Rails.logger.error("Track click: Short URL not found: #{params[:short_uri]}")
       render json: { success: false, error: "Short URL not found" }, status: :not_found
+      return
+    end
+
+    begin
+      if request.content_type&.include?("application/json")
+        request.body.rewind
+        parsed_params = JSON.parse(request.body.read)
+      else
+        parsed_params = params.to_unsafe_h
+      end
+
+      url_type = parsed_params["url_type"]
+      redirected_url = parsed_params["redirected_url"]
+      visitor_id = parsed_params["visitor_id"]
+
+      Rails.logger.info("Track click attempt: short_uri=#{params[:short_uri]}, url_type=#{url_type}, visitor_id=#{visitor_id}")
+
+      unless url_type.in?([ "url1", "url2" ]) && redirected_url.present?
+        Rails.logger.error("Invalid parameters: url_type=#{url_type}, redirected_url=#{redirected_url}")
+        render json: { success: false, error: "Invalid parameters" }, status: :unprocessable_entity
+        return
+      end
+
+      tracking_result = UrlClick.track_click(
+        short_url: @short_url,
+        url_type: url_type,
+        redirected_url: redirected_url,
+        request: request,
+        user_id: @short_url.user_id,
+        visitor_id: visitor_id
+      )
+
+      if tracking_result
+        Rails.logger.info("✓ Click tracked successfully in ClickHouse for #{params[:short_uri]}")
+        render json: { success: true, message: "Click tracked successfully" }
+      else
+        Rails.logger.error("✗ ClickHouse tracking failed for #{params[:short_uri]}")
+        render json: { success: false, error: "Tracking failed" }, status: :internal_server_error
+      end
+
+    rescue JSON::ParserError => e
+      Rails.logger.error("JSON parse error: #{e.message}")
+      render json: { success: false, error: "Invalid JSON" }, status: :bad_request
+    rescue => e
+      Rails.logger.error("Track click error: #{e.class} - #{e.message}")
+      Rails.logger.error(e.backtrace.first(5).join("\n"))
+      render json: { success: false, error: "Internal server error" }, status: :internal_server_error
     end
   end
 
- # GET /short_urls/:id/stats - View analytics for a short URL
- def stats
+  def stats
     days = params[:days]&.to_i || 30
     @stats = UrlClick.comprehensive_stats(@short_url.id, days: days)
     @recent_clicks = UrlClick.recent_clicks(@short_url.id, limit: 50)
@@ -107,6 +126,7 @@ class ShortUrlsController < ApplicationController
       format.json { render json: @stats }
     end
   end
+
   def check_availability
     short_uri = params[:short_uri].to_s.strip.downcase
 
@@ -142,11 +162,9 @@ class ShortUrlsController < ApplicationController
     if user_signed_in?
       @short_url = current_user.short_urls.find(params[:id])
     else
-      # Allow public access to stats (optional)
       @short_url = ShortUrl.find(params[:id])
     end
   end
-
 
   def short_url_params
     params.require(:short_url).permit(:url1, :url2, :short_uri)
@@ -166,13 +184,11 @@ class ShortUrlsController < ApplicationController
   def check_duplicate_urls(short_url)
     warnings = []
 
-    # Check if URL1 is already used by this user
     existing_url1 = current_user.short_urls.where("url1 = ? OR url2 = ?", short_url.url1, short_url.url1)
     if existing_url1.exists?
       warnings << "URL 1 (#{short_url.url1}) is already being used in another short link"
     end
 
-    # Check if URL2 is already used by this user (if provided)
     if short_url.url2.present?
       existing_url2 = current_user.short_urls.where("url1 = ? OR url2 = ?", short_url.url2, short_url.url2)
       if existing_url2.exists?
