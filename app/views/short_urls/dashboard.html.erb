@@ -51,6 +51,109 @@
     </div>
   </div>
 
+  <!-- NEW: UTM Analytics Section -->
+  <% 
+    # Aggregate UTM stats across all URLs
+    all_utm_campaigns = []
+    all_utm_sources = []
+    all_utm_mediums = []
+    
+    @all_stats[:url_stats].each do |url_stat|
+      all_utm_campaigns.concat(url_stat[:stats][:utm_campaign_stats] || [])
+      all_utm_sources.concat(url_stat[:stats][:utm_source_stats] || [])
+      all_utm_mediums.concat(url_stat[:stats][:utm_medium_stats] || [])
+    end
+    
+    # Aggregate by grouping
+    utm_campaigns_grouped = all_utm_campaigns.group_by { |s| [s['utm_campaign'], s['utm_source'], s['utm_medium']] }
+      .map { |k, v| { 'utm_campaign' => k[0], 'utm_source' => k[1], 'utm_medium' => k[2], 'clicks' => v.sum { |x| x['clicks'] }, 'unique_visitors' => v.sum { |x| x['unique_visitors'] } } }
+      .sort_by { |s| -s['clicks'] }
+    
+    utm_sources_grouped = all_utm_sources.group_by { |s| s['utm_source'] }
+      .map { |k, v| { 'utm_source' => k, 'clicks' => v.sum { |x| x['clicks'] }, 'unique_visitors' => v.sum { |x| x['unique_visitors'] } } }
+      .sort_by { |s| -s['clicks'] }
+    
+    utm_mediums_grouped = all_utm_mediums.group_by { |s| s['utm_medium'] }
+      .map { |k, v| { 'utm_medium' => k, 'clicks' => v.sum { |x| x['clicks'] }, 'unique_visitors' => v.sum { |x| x['unique_visitors'] } } }
+      .sort_by { |s| -s['clicks'] }
+  %>
+
+  <!-- UTM Campaign Performance -->
+  <% if utm_campaigns_grouped.any? %>
+  <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+    <h2 class="text-sm font-semibold mb-3">📊 UTM Campaign Performance</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-2 px-3 font-medium text-gray-600">Campaign</th>
+            <th class="text-left py-2 px-3 font-medium text-gray-600">Source</th>
+            <th class="text-left py-2 px-3 font-medium text-gray-600">Medium</th>
+            <th class="text-right py-2 px-3 font-medium text-gray-600">Clicks</th>
+            <th class="text-right py-2 px-3 font-medium text-gray-600">Unique</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% utm_campaigns_grouped.first(15).each do |stat| %>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-2 px-3">
+                <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  <%= stat['utm_campaign'] %>
+                </span>
+              </td>
+              <td class="py-2 px-3 text-gray-600"><%= stat['utm_source'] %></td>
+              <td class="py-2 px-3 text-gray-600"><%= stat['utm_medium'] %></td>
+              <td class="text-right py-2 px-3 font-semibold"><%= stat['clicks'] %></td>
+              <td class="text-right py-2 px-3 text-gray-500"><%= stat['unique_visitors'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% end %>
+
+  <!-- UTM Source & Medium Grid -->
+  <% if utm_sources_grouped.any? || utm_mediums_grouped.any? %>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <!-- UTM Sources -->
+    <% if utm_sources_grouped.any? %>
+    <div class="bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold mb-3">🌐 Traffic Sources</h2>
+      <div class="space-y-2">
+        <% utm_sources_grouped.first(10).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-2 border-b border-gray-100 last:border-0">
+            <span class="font-medium text-gray-700 capitalize"><%= stat['utm_source'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600 font-semibold"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <% end %>
+    
+    <!-- UTM Mediums -->
+    <% if utm_mediums_grouped.any? %>
+    <div class="bg-white rounded-lg shadow-sm p-4">
+      <h2 class="text-sm font-semibold mb-3">📱 Marketing Mediums</h2>
+      <div class="space-y-2">
+        <% utm_mediums_grouped.first(10).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-2 border-b border-gray-100 last:border-0">
+            <span class="font-medium text-gray-700 capitalize"><%= stat['utm_medium'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600 font-semibold"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <% end %>
+  </div>
+  <% end %>
+
   <!-- Device & Browser Stats -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
     <!-- Device Distribution -->
@@ -152,6 +255,20 @@
               <p class="text-xs text-gray-600">Unique Visitors</p>
             </div>
           </div>
+          
+          <!-- Show UTM stats preview if available -->
+          <% if url_stat[:stats][:utm_campaign_stats].any? %>
+          <div class="mt-3 pt-3 border-t border-gray-200">
+            <p class="text-xs text-gray-500 mb-2">📊 Top Campaigns:</p>
+            <div class="flex flex-wrap gap-1">
+              <% url_stat[:stats][:utm_campaign_stats].first(3).each do |campaign| %>
+                <span class="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs">
+                  <%= campaign['utm_campaign'] %> (<%= campaign['clicks'] %>)
+                </span>
+              <% end %>
+            </div>
+          </div>
+          <% end %>
         </div>
       <% end %>
       

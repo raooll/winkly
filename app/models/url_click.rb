@@ -3,75 +3,82 @@
 class UrlClick < ClickhouseRecord
   self.table_name = "url_clicks"
 
-def self.track_click(short_url:, url_type:, redirected_url:, request:, user_id: nil, visitor_id: nil)
-  require "net/http"
-  require "uri"
+  def self.track_click(short_url:, url_type:, redirected_url:, request:, user_id: nil, visitor_id: nil)
+    require "net/http"
+    require "uri"
 
-  config = get_clickhouse_config
-  unless config
-    Rails.logger.error("ClickHouse config not available")
-    return false
+    config = get_clickhouse_config
+    unless config
+      Rails.logger.error("ClickHouse config not available")
+      return false
+    end
+
+    click_id = generate_unique_id
+    timestamp = Time.current.strftime("%Y-%m-%d %H:%M:%S")
+
+    user_agent = request.user_agent || "Unknown"
+    browser_info = parse_user_agent(user_agent)
+
+    ip_address = request.remote_ip
+    location_info = get_location_info(ip_address)
+
+    referrer = request.referer
+    referrer_domain = referrer ? URI.parse(referrer).host : nil rescue nil
+
+    session_id = visitor_id || request.session_options[:id]
+
+    # Extract UTM parameters
+    utm_params = extract_utm_parameters(request)
+
+    Rails.logger.info("Tracking click: id=#{click_id}, short_url_id=#{short_url.id}, url_type=#{url_type}, visitor_id=#{visitor_id}, ip=#{ip_address}")
+
+    query = <<~SQL
+      INSERT INTO url_clicks (
+        id, short_url_id, tracking_id, short_uri, redirected_to_url, url_type,
+        user_id, session_id,
+        user_agent, browser, browser_version, device_type, os, os_version,
+        ip_address, country, city, region,
+        referrer, referrer_domain,
+        utm_source, utm_medium, utm_campaign, utm_term, utm_content,
+        clicked_at, created_at
+      ) VALUES (
+        #{click_id},
+        #{short_url.id},
+        '#{escape_string(short_url.tracking_id)}',
+        '#{escape_string(short_url.short_uri)}',
+        '#{escape_string(redirected_url)}',
+        '#{url_type}',
+        #{user_id || 'NULL'},
+        #{session_id ? "'#{escape_string(session_id.to_s)}'" : 'NULL'},
+        '#{escape_string(user_agent)}',
+        '#{escape_string(browser_info[:browser])}',
+        '#{escape_string(browser_info[:version])}',
+        '#{escape_string(browser_info[:device_type])}',
+        '#{escape_string(browser_info[:os])}',
+        '#{escape_string(browser_info[:os_version])}',
+        '#{escape_string(ip_address)}',
+        '#{escape_string(location_info[:country])}',
+        '#{escape_string(location_info[:city])}',
+        '#{escape_string(location_info[:region])}',
+        #{referrer ? "'#{escape_string(referrer)}'" : 'NULL'},
+        #{referrer_domain ? "'#{escape_string(referrer_domain)}'" : 'NULL'},
+        #{utm_params[:utm_source] ? "'#{escape_string(utm_params[:utm_source])}'" : 'NULL'},
+        #{utm_params[:utm_medium] ? "'#{escape_string(utm_params[:utm_medium])}'" : 'NULL'},
+        #{utm_params[:utm_campaign] ? "'#{escape_string(utm_params[:utm_campaign])}'" : 'NULL'},
+        #{utm_params[:utm_term] ? "'#{escape_string(utm_params[:utm_term])}'" : 'NULL'},
+        #{utm_params[:utm_content] ? "'#{escape_string(utm_params[:utm_content])}'" : 'NULL'},
+        '#{timestamp}',
+        '#{timestamp}'
+      )
+    SQL
+
+    result = execute_raw(config, query)
+    Rails.logger.info("✓ ClickHouse insert successful")
+    true
+  rescue => e
+    Rails.logger.error("ClickHouse URL click tracking failed: #{e.class} - #{e.message}")
+    false
   end
-
-  click_id = generate_unique_id
-  timestamp = Time.current.strftime("%Y-%m-%d %H:%M:%S")
-
-  user_agent = request.user_agent || "Unknown"
-  browser_info = parse_user_agent(user_agent)
-
-  ip_address = request.remote_ip
-  location_info = get_location_info(ip_address)
-
-  referrer = request.referer
-  referrer_domain = referrer ? URI.parse(referrer).host : nil rescue nil
-
-  session_id = visitor_id || request.session_options[:id]
-
-  Rails.logger.info("Tracking click: id=#{click_id}, short_url_id=#{short_url.id}, url_type=#{url_type}, visitor_id=#{visitor_id}, ip=#{ip_address}")
-
-  query = <<~SQL
-    INSERT INTO url_clicks (
-      id, short_url_id, tracking_id, short_uri, redirected_to_url, url_type,
-      user_id, session_id,
-      user_agent, browser, browser_version, device_type, os, os_version,
-      ip_address, country, city, region,
-      referrer, referrer_domain,
-      clicked_at, created_at
-    ) VALUES (
-      #{click_id},
-      #{short_url.id},
-      '#{escape_string(short_url.tracking_id)}',
-      '#{escape_string(short_url.short_uri)}',
-      '#{escape_string(redirected_url)}',
-      '#{url_type}',
-      #{user_id || 'NULL'},
-      #{session_id ? "'#{escape_string(session_id.to_s)}'" : 'NULL'},
-      '#{escape_string(user_agent)}',
-      '#{escape_string(browser_info[:browser])}',
-      '#{escape_string(browser_info[:version])}',
-      '#{escape_string(browser_info[:device_type])}',
-      '#{escape_string(browser_info[:os])}',
-      '#{escape_string(browser_info[:os_version])}',
-      '#{escape_string(ip_address)}',
-      '#{escape_string(location_info[:country])}',
-      '#{escape_string(location_info[:city])}',
-      '#{escape_string(location_info[:region])}',
-      #{referrer ? "'#{escape_string(referrer)}'" : 'NULL'},
-      #{referrer_domain ? "'#{escape_string(referrer_domain)}'" : 'NULL'},
-      '#{timestamp}',
-      '#{timestamp}'
-    )
-  SQL
-
-  result = execute_raw(config, query)
-  Rails.logger.info("✓ ClickHouse insert successful")
-  true
-rescue => e
-  Rails.logger.error("ClickHouse URL click tracking failed: #{e.class} - #{e.message}")
-
-  false
-end
-
 
   def self.total_clicks(short_url_id)
     where("short_url_id = ?", short_url_id).count
@@ -246,6 +253,84 @@ end
     []
   end
 
+  # New method: UTM Campaign Performance
+  def self.utm_campaign_stats(short_url_id)
+    config = get_clickhouse_config
+    return [] unless config
+
+    query = <<~SQL
+      SELECT#{' '}
+        utm_source,
+        utm_medium,
+        utm_campaign,
+        count() as clicks,
+        uniq(ip_address) as unique_visitors
+      FROM url_clicks
+      WHERE short_url_id = #{short_url_id}
+        AND utm_campaign != ''
+      GROUP BY utm_source, utm_medium, utm_campaign
+      ORDER BY clicks DESC
+      LIMIT 50
+      FORMAT JSONEachRow
+    SQL
+
+    result = execute_raw(config, query)
+    parse_json_result(result)
+  rescue => e
+    Rails.logger.error("ClickHouse utm_campaign_stats failed: #{e.message}")
+    []
+  end
+
+  # New method: UTM Source Performance
+  def self.utm_source_stats(short_url_id)
+    config = get_clickhouse_config
+    return [] unless config
+
+    query = <<~SQL
+      SELECT#{' '}
+        utm_source,
+        count() as clicks,
+        uniq(ip_address) as unique_visitors
+      FROM url_clicks
+      WHERE short_url_id = #{short_url_id}
+        AND utm_source != ''
+      GROUP BY utm_source
+      ORDER BY clicks DESC
+      FORMAT JSONEachRow
+    SQL
+
+    result = execute_raw(config, query)
+    parse_json_result(result)
+  rescue => e
+    Rails.logger.error("ClickHouse utm_source_stats failed: #{e.message}")
+    []
+  end
+
+  # New method: UTM Medium Performance
+  def self.utm_medium_stats(short_url_id)
+    config = get_clickhouse_config
+    return [] unless config
+
+    query = <<~SQL
+      SELECT#{' '}
+        utm_medium,
+        count() as clicks,
+        uniq(ip_address) as unique_visitors
+      FROM url_clicks
+      WHERE short_url_id = #{short_url_id}
+        AND utm_medium != ''
+      GROUP BY utm_medium
+      ORDER BY clicks DESC
+      FORMAT JSONEachRow
+    SQL
+
+    result = execute_raw(config, query)
+    parse_json_result(result)
+  rescue => e
+    Rails.logger.error("ClickHouse utm_medium_stats failed: #{e.message}")
+    []
+  end
+
   def self.comprehensive_stats(short_url_id, days: 30)
     {
       total_clicks: total_clicks(short_url_id),
@@ -255,7 +340,10 @@ end
       device_stats: device_stats(short_url_id),
       browser_stats: browser_stats(short_url_id),
       referrer_stats: referrer_stats(short_url_id),
-      hourly_pattern: hourly_pattern(short_url_id, days: days)
+      hourly_pattern: hourly_pattern(short_url_id, days: days),
+      utm_campaign_stats: utm_campaign_stats(short_url_id),
+      utm_source_stats: utm_source_stats(short_url_id),
+      utm_medium_stats: utm_medium_stats(short_url_id)
     }
   end
 
@@ -269,6 +357,16 @@ end
 
   def self.generate_unique_id
     Time.now.to_i * 1000 + rand(1000)
+  end
+
+  def self.extract_utm_parameters(request)
+    {
+      utm_source: request.params["utm_source"],
+      utm_medium: request.params["utm_medium"],
+      utm_campaign: request.params["utm_campaign"],
+      utm_term: request.params["utm_term"],
+      utm_content: request.params["utm_content"]
+    }
   end
 
   def self.get_clickhouse_config

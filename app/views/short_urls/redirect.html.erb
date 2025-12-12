@@ -60,6 +60,18 @@
       
       const trackingKey = `winkly_${shortUri}`;
 
+      // Extract UTM parameters from current URL
+      function getUtmParameters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return {
+          utm_source: urlParams.get('utm_source') || null,
+          utm_medium: urlParams.get('utm_medium') || null,
+          utm_campaign: urlParams.get('utm_campaign') || null,
+          utm_term: urlParams.get('utm_term') || null,
+          utm_content: urlParams.get('utm_content') || null
+        };
+      }
+
       // Function to get or create a unique visitor ID
       function getVisitorId() {
         let visitorId;
@@ -87,13 +99,23 @@
       
       // Function to send tracking data to server (ClickHouse)
       async function trackClick(urlType, redirectUrl) {
+        const utmParams = getUtmParameters();
+        
         const trackingData = {
           url_type: urlType,
           redirected_url: redirectUrl,
           visitor_id: getVisitorId(),
           user_agent: navigator.userAgent,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Include UTM parameters
+          utm_source: utmParams.utm_source,
+          utm_medium: utmParams.utm_medium,
+          utm_campaign: utmParams.utm_campaign,
+          utm_term: utmParams.utm_term,
+          utm_content: utmParams.utm_content
         };
+        
+        console.log('📊 Tracking click with UTM params:', utmParams);
         
         // Use sendBeacon as primary method (more reliable on mobile)
         if (navigator.sendBeacon) {
@@ -104,12 +126,14 @@
               blob
             );
             if (success) {
+              console.log('✓ Click tracked via sendBeacon with UTM params');
               return true;
             }
           } catch (error) {
             console.error('sendBeacon failed:', error);
           }
         }
+        
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -122,7 +146,7 @@
               'Accept': 'application/json'
             },
             body: JSON.stringify(trackingData),
-            keepalive: true, // Important for mobile
+            keepalive: true,
             signal: controller.signal
           });
           
@@ -130,13 +154,15 @@
           
           if (response.ok) {
             const result = await response.json();
-            console.log('✓ Click tracked via fetch:', result);
+            console.log('✓ Click tracked via fetch with UTM params:', result);
             return true;
           } else {
             const errorText = await response.text();
+            console.error('✗ Tracking failed:', errorText);
             return false;
           }
         } catch (error) {
+          console.error('✗ Tracking error:', error);
           return false;
         }
       }
@@ -145,7 +171,6 @@
         if (!url2 || url2 === '') {
           return { url: url1, type: 'url1' };
         }
-        
         
         const visitorId = getVisitorId();
         let trackingData;
@@ -160,19 +185,15 @@
           }
         }
         
-        
         if (trackingData) {
-          
           try {
             const data = JSON.parse(trackingData);
             
             if (data.visitorId === visitorId) {
-              
               const lastUrl = data.lastUrl;
               const nextUrl = lastUrl === url1 ? url2 : url1;
               const nextType = lastUrl === url1 ? 'url2' : 'url1';
               
-   
               const newTrackingData = {
                 visitorId: visitorId,
                 lastUrl: nextUrl,
@@ -188,7 +209,6 @@
               
               return { url: nextUrl, type: nextType };
             } else {
-              
               // Different visitor - start fresh with url1
               const newTrackingData = {
                 visitorId: visitorId,
@@ -206,7 +226,6 @@
               return { url: url1, type: 'url1' };
             }
           } catch (e) {
-            
             const newTrackingData = {
               visitorId: visitorId,
               lastUrl: url1,
@@ -245,16 +264,18 @@
           // Get the target URL
           const redirectInfo = getRedirectUrl();
 
-          // Track the click (with timeout protection)
+          // Track the click with UTM parameters
           const trackingPromise = trackClick(redirectInfo.type, redirectInfo.url);
           
           // Wait for tracking with max 2 second timeout
           const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
           await Promise.race([trackingPromise, timeoutPromise]);
+          
           // Redirect
           window.location.href = redirectInfo.url;
           
         } catch (error) {
+          console.error('Redirect error:', error);
           // Still redirect even if tracking fails
           const redirectInfo = getRedirectUrl();
           window.location.href = redirectInfo.url;

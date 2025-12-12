@@ -151,6 +151,83 @@
       <% end %>
     </div>
   </div>
+  <!-- UTM Campaign Performance -->
+  <% if @stats[:utm_campaign_stats].any? %>
+  <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
+    <h2 class="text-sm font-semibold mb-2">📊 UTM Campaign Performance</h2>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="text-left py-1.5 px-2 font-medium text-gray-600">Campaign</th>
+            <th class="text-left py-1.5 px-2 font-medium text-gray-600">Source</th>
+            <th class="text-left py-1.5 px-2 font-medium text-gray-600">Medium</th>
+            <th class="text-right py-1.5 px-2 font-medium text-gray-600">Clicks</th>
+            <th class="text-right py-1.5 px-2 font-medium text-gray-600">Unique</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @stats[:utm_campaign_stats].first(10).each do |stat| %>
+            <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+              <td class="py-1.5 px-2">
+                <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  <%= stat['utm_campaign'] %>
+                </span>
+              </td>
+              <td class="py-1.5 px-2 text-gray-600"><%= stat['utm_source'] %></td>
+              <td class="py-1.5 px-2 text-gray-600"><%= stat['utm_medium'] %></td>
+              <td class="text-right py-1.5 px-2 font-semibold"><%= stat['clicks'] %></td>
+              <td class="text-right py-1.5 px-2 text-gray-500"><%= stat['unique_visitors'] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% end %>
+
+<!-- UTM Source & Medium Grid -->
+  <% if @stats[:utm_source_stats].any? || @stats[:utm_medium_stats].any? %>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+    <!-- UTM Sources -->
+    <% if @stats[:utm_source_stats].any? %>
+    <div class="bg-white rounded-lg shadow-sm p-3">
+      <h2 class="text-sm font-semibold mb-2">🌐 Traffic Sources</h2>
+      <div class="space-y-1">
+        <% @stats[:utm_source_stats].first(8).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-1.5 border-b border-gray-100 last:border-0">
+            <span class="font-medium text-gray-700 capitalize"><%= stat['utm_source'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <% end %>
+  
+    <!-- UTM Mediums -->
+    <% if @stats[:utm_medium_stats].any? %>
+    <div class="bg-white rounded-lg shadow-sm p-3">
+      <h2 class="text-sm font-semibold mb-2">📱 Marketing Mediums</h2>
+      <div class="space-y-1">
+        <% @stats[:utm_medium_stats].first(8).each do |stat| %>
+          <div class="flex justify-between items-center text-xs py-1.5 border-b border-gray-100 last:border-0">
+            <span class="font-medium text-gray-700 capitalize"><%= stat['utm_medium'] %></span>
+            <div class="flex items-center gap-2">
+              <span class="text-gray-600"><%= stat['clicks'] %></span>
+              <span class="text-gray-400 text-xs">(<%= stat['unique_visitors'] %> unique)</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    <% end %>
+  </div>
+  <% end %>
+
+
 
   <!-- Hourly Pattern -->
   <div class="bg-white rounded-lg shadow-sm p-3 mb-3">
