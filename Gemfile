@@ -72,5 +72,5 @@ gem "activeadmin", "4.0.0.beta19"
 gem "tailwindcss-rails", "~> 4.4"
 gem "importmap-rails"
 
-gem "friendly_id", "~> 5.5.0"
+gem "friendly_id", "~> 5.6.0"
 gem "clickhouse-activerecord"
